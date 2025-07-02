@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+      input[type="text"], input[type="number"] {
+        width: 56px;
+        box-sizing: border-box;
+      }
+      /* Exceptions pour les champs date et file */
+      input[type="date"], input[type="file"] {
+        width: auto;
+      }
+      #plage-depart-module input[type="time"]::-webkit-inner-spin-button,
+      #plage-depart-module input[type="time"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      #plage-depart-module input[type="time"] {
+        -moz-appearance: textfield;
+      }
+      #plage-horaires-module input[type="time"]::-webkit-calendar-picker-indicator {
+        display: none;
+      }
+      #plage-horaires-module input[type="time"]::-webkit-inner-spin-button,
+      #plage-horaires-module input[type="time"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      #plage-horaires-module input[type="time"] {
+        -moz-appearance: textfield;
+      }
+    </style>
+</head>
+<body>
+    <!-- Bouton de menu en haut à droite -->
+    <div style="position: fixed; top: 20px; right: 20px; z-index: 100;">
+        <button id="btn-menu" style="background: #1976d2; color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+            ☰ Menu
+        </button>
+    </div>
+
+    <h1>Agenda</h1>
+    <div style="display: flex; justify-content: center; width: 100%; margin-bottom: 24px; position: relative; gap: 32px;">
+      <div style="position: relative; display: inline-block;">
+        <div id="calendrier"></div>
+        <button id="btn-vacances" style="position: absolute; top: 0; right: 0; height: 40px;">Vacances</button>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: center; gap: 32px; margin-bottom: 24px;">
+      <div id="calculateur-horaire" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px;">
+        <h3 style="margin-top:0;">Calculette d'heure d'arrivée/départ</h3>
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+            <label for="calc-arrivee" style="min-width:90px;">Arrivée :</label>
+            <input type="text" id="calc-arrivee" placeholder="HH:MM" style="width:80px;">
+        </div>
+        <div id="calc-pause1-fields" style="margin-bottom:8px;">
+            <div style="display:flex; gap:12px; align-items:center;">
+                <label for="calc-pause1-debut" style="min-width:90px;">Pause matin :</label>
+                <input type="text" id="calc-pause1-debut" value="09:00" style="width:60px;" placeholder="HH:MM">
+                <span>à</span>
+                <input type="text" id="calc-pause1-fin" value="09:00" style="width:60px;" placeholder="HH:MM">
+            </div>
+        </div>
+        <div id="calc-pause-sup-fields" style="margin-bottom:8px;">
+            <div style="display:flex; gap:12px; align-items:center;">
+                <label for="calc-pause2-debut" style="min-width:90px;">Pause supp. :</label>
+                <input type="text" id="calc-pause2-debut" value="09:00" style="width:60px;" placeholder="HH:MM">
+                <span>à</span>
+                <input type="text" id="calc-pause2-fin" value="09:00" style="width:60px;" placeholder="HH:MM">
+            </div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+            <label for="calc-pause-debut" style="min-width:90px;">Pause midi :</label>
+            <input type="text" id="calc-pause-debut" value="12:00" style="width:60px;" placeholder="HH:MM">
+            <span>à</span>
+            <input type="text" id="calc-pause-fin" value="12:30" style="width:60px;" placeholder="HH:MM">
+            <span id="midi-indication" style="font-size:1.2em; margin-left:6px; display: flex; align-items: center; height: 32px;"></span>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+            <label for="calc-depart" style="min-width:90px;">Départ :</label>
+            <input type="text" id="calc-depart" placeholder="HH:MM" style="width:80px;">
+            <span id="depart-indication" style="font-size:0.95em; margin-left:4px;"></span>
+        </div>
+        <div id="calc-info" style="margin-top:10px; font-size:0.95em; color:#555;"></div>
+      </div>
+      <div id="zero-module" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px;">
+        <h3 style="margin-top:0;">Zero</h3>
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+          <label for="zero-arrivee" style="min-width:90px;">Arrivée :</label>
+          <input type="text" id="zero-arrivee" placeholder="HH:MM" style="width:80px;" inputmode="numeric" autocomplete="off">
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+          <label for="zero-pause1-debut" style="min-width:90px;">Pause matin :</label>
+          <input type="text" id="zero-pause1-debut" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+          <span>à</span>
+          <input type="text" id="zero-pause1-fin" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+          <label for="zero-pause-debut" style="min-width:90px;">Pause midi :</label>
+          <input type="text" id="zero-pause-debut" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+          <span>à</span>
+          <input type="text" id="zero-pause-fin" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <label for="zero-depart" style="min-width:90px;">Départ :</label>
+          <input type="text" id="zero-depart" placeholder="HH:MM" style="width:80px;" inputmode="numeric" autocomplete="off">
+          <span id="zero-heures-sup" style="margin-left:8px; font-weight:bold; color:#1976d2;"></span>
+        </div>
+      </div>
+    </div>
+    <div id="confirm-modal-bg" class="modal-bg" style="display:none;">
+        <div class="modal">
+            <p>Voulez-vous vraiment supprimer toutes les valeurs du mois affiché ?</p>
+            <button id="confirm-oui">Oui</button>
+            <button id="confirm-non">Non</button>
+        </div>
+    </div>
+    <div id="modal-bg" class="modal-bg" style="display:none;">
+        <div class="modal">
+            <span class="modal-close" id="modal-close">&times;</span>
+            <form id="horaire-form">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <label for="date">Date :</label>
+                    <input type="date" id="date" name="date" required>
+                    <label for="arrivee">Heure d'arrivée :</label>
+                    <input type="text" id="arrivee" name="arrivee" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                    <label for="pause-debut">Début pause déjeuner :</label>
+                    <input type="text" id="pause-debut" name="pause-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                    <label for="pause-fin">Fin pause déjeuner :</label>
+                    <input type="text" id="pause-fin" name="pause-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                    <label for="depart">Heure de départ :</label>
+                    <input type="text" id="depart" name="depart" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                    <label><input type="checkbox" id="pause-checkbox" name="pause"> Pause supplémentaire</label>
+                    <div id="pause-fields" style="display:none; flex-direction: column; gap: 10px;">
+                        <label for="pause2-debut">Début pause supplémentaire :</label>
+                        <input type="text" id="pause2-debut" name="pause2-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                        <label for="pause2-fin">Fin pause supplémentaire :</label>
+                        <input type="text" id="pause2-fin" name="pause2-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                    </div>
+                    <button type="submit">Enregistrer la journée</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <h2>Jours saisis</h2>
+    <table id="table-jours">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Arrivée</th>
+                <th>Début pause</th>
+                <th>Fin pause</th>
+                <th>Départ</th>
+                <th>Heures travaillées</th>
+                <th>Écart</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Les jours saisis s'afficheront ici -->
+        </tbody>
+    </table>
+    <div id="total-ecart"></div>
+    <div id="actions-excel">
+        <button id="export-excel">Exporter en Excel</button>
+        <input type="file" id="import-excel" accept=".xlsx, .xls" style="display:none;">
+        <button id="import-excel-btn">Importer un fichier Excel</button>
+    </div>
+    <button id="supprimer-mois" style="margin:24px 0 16px 0;">Supprimer toutes les valeurs du mois affiché</button>
+    <div id="app"></div>
+    <div id="vacances-modal-bg" class="modal-bg" style="display:none;">
+        <div class="modal" style="min-width: 400px;">
+            <span class="modal-close" id="vacances-modal-close">&times;</span>
+            <h2 style="text-align:center;">Gestion des vacances</h2>
+            <div style="display:flex; gap:12px; margin-bottom:8px; justify-content:center;">
+                <button id="mode-conge" class="btn-mode-vac selected">Congés payés</button>
+                <button id="mode-rtt" class="btn-mode-vac">RTT</button>
+            </div>
+            <div style="margin-bottom:8px; font-size:0.95em;">
+                <span style="display:inline-block;width:18px;height:18px;background:#ffe082;border:2px solid #ffb300;margin-right:4px;vertical-align:middle;"></span> Congé payé
+                <span style="display:inline-block;width:18px;height:18px;background:#81d4fa;border:2px solid #0288d1;margin:0 4px 0 16px;vertical-align:middle;"></span> RTT
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:center;">
+                <button id="vac-prev-year">&#8592;</button>
+                <span id="vac-annee"></span>
+                <button id="vac-next-year">&#8594;</button>
+            </div>
+            <div id="calendrier-vacances"></div>
+            <button id="vacances-modal-valider" style="margin-top:16px;">Valider</button>
+        </div>
+    </div>
+    
+    <!-- Modal des paramètres -->
+    <div id="parametres-modal-bg" class="modal-bg" style="display:none;">
+        <div class="modal" style="min-width: 400px; max-width: 600px;">
+            <span class="modal-close" id="parametres-modal-close">&times;</span>
+            <h2 style="margin-top: 0; text-align: center; color: #1976d2;">Paramètres</h2>
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; border-left: 4px solid #1976d2;">
+                    <h3 style="margin: 0 0 12px 0; color: #1976d2;">Configuration générale</h3>
+                    <p style="margin: 0; color: #666; font-size: 14px;">Modifiez les paramètres de base de l'application.</p>
+                </div>
+                <div id="plage-horaires-module" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; font-family: inherit; font-size: 1em; align-self: center;">
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <label for="plage-arrivee-min" style="min-width:90px;">Plage d'arrivée :</label>
+                        <input type="time" id="plage-arrivee-min" value="08:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                        <span>à</span>
+                        <input type="time" id="plage-arrivee-max" value="10:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                    </div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <label for="plage-midi-min" style="min-width:90px;">Plage midi :</label>
+                        <input type="time" id="plage-midi-min" value="12:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                        <span>à</span>
+                        <input type="time" id="plage-midi-max" value="14:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                    </div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <label for="plage-depart-min" style="min-width:90px;">Plage de départ :</label>
+                        <input type="time" id="plage-depart-min" value="15:45" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                        <span>à</span>
+                        <input type="time" id="plage-depart-max" value="18:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                    </div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 6px; font-weight: bold;">Jours de travail :</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <input type="checkbox" id="param-jour-lundi">
+                                <span>Lundi</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <input type="checkbox" id="param-jour-mardi">
+                                <span>Mardi</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <input type="checkbox" id="param-jour-mercredi">
+                                <span>Mercredi</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <input type="checkbox" id="param-jour-jeudi">
+                                <span>Jeudi</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <input type="checkbox" id="param-jour-vendredi">
+                                <span>Vendredi</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <input type="checkbox" id="param-jour-samedi">
+                                <span>Samedi</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <input type="checkbox" id="param-jour-dimanche">
+                                <span>Dimanche</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="param-heures-jour" style="display: block; margin-bottom: 6px; font-weight: bold;">Heures à faire par jour :</label>
+                        <input type="number" id="param-heures-jour" min="0" max="24" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    
+                    <div>
+                        <label for="param-heures-supplementaires" style="display: block; margin-bottom: 6px; font-weight: bold;">Heures supplémentaires :</label>
+                        <input type="number" id="param-heures-supplementaires" min="0" max="100" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    
+                    <div>
+                        <label for="param-pause-offerte" style="display: block; margin-bottom: 6px; font-weight: bold;">Temps de pause offert (minutes) :</label>
+                        <input type="number" id="param-pause-offerte" min="0" max="120" step="1" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    
+                    <div>
+                        <label for="param-pause-midi-min" style="display: block; margin-bottom: 6px; font-weight: bold;">Temps minimal pause midi (minutes) :</label>
+                        <input type="number" id="param-pause-midi-min" min="0" max="180" step="1" value="30" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                    <button id="parametres-annuler" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        Fermer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+    
+    <!-- Modal de menu -->
+    <div id="menu-modal-bg" class="modal-bg" style="display:none;">
+        <div class="modal" style="min-width: 280px; max-width: 400px;">
+            <span class="modal-close" id="menu-modal-close">&times;</span>
+            <h2 style="margin-top: 0; text-align: center; color: #1976d2;">Menu</h2>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="menu-module" id="menu-parametres" style="padding: 16px; background: #f5f5f5; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s ease;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 24px;">⚙️</span>
+                        <div>
+                            <h3 style="margin: 0; font-size: 16px; color: #333;">Paramètres</h3>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">Configuration de l'application</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

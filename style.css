@@ -1,0 +1,331 @@
+/* Feuille de style principale */ 
+.ecart-positif {
+    color: green;
+    font-weight: bold;
+}
+.ecart-negatif {
+    color: red;
+    font-weight: bold;
+}
+.btn-supprimer {
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.btn-supprimer:hover {
+    background: #c0392b;
+}
+#total-ecart {
+    margin-top: 10px;
+    font-size: 1.1em;
+    font-weight: bold;
+}
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    background: #f4f6fa;
+}
+#calendrier {
+    margin-bottom: 20px;
+    display: inline-block;
+    background: #f8f8f8;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    text-align: center;
+}
+#heures-jour-container {
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+#heures-jour-hhmm, #heures-jour {
+    width: 90px;
+}
+.calendrier-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.calendrier-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+.calendrier-table th, .calendrier-table td {
+    width: 36px;
+    height: 36px;
+    text-align: center;
+    border: 1px solid #e0e0e0;
+    cursor: pointer;
+    background: #fff;
+    transition: background 0.2s;
+}
+.calendrier-table td:hover {
+    background: #e0f7fa;
+}
+.jour-selectionne {
+    background: #1976d2 !important;
+    color: #fff;
+    font-weight: bold;
+}
+.jour-rempli {
+    background: #c8e6c9 !important;
+    font-weight: bold;
+}
+.jour-vacances {
+    background: #ffe082 !important;
+    color: #b26a00 !important;
+    font-weight: bold;
+    border: 2px solid #ffb300 !important;
+}
+.jour-rtt {
+    background: #81d4fa !important;
+    color: #01579b !important;
+    font-weight: bold;
+    border: 2px solid #0288d1 !important;
+}
+#calendrier-vacances {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 12px;
+}
+.calendrier-mois-vacances {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fafafa;
+    margin-bottom: 8px;
+    padding: 8px;
+}
+.calendrier-mois-vacances table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.95em;
+}
+.calendrier-mois-vacances th, .calendrier-mois-vacances td {
+    width: 28px;
+    height: 28px;
+    text-align: center;
+    border: 1px solid #e0e0e0;
+    cursor: pointer;
+    background: #fff;
+    transition: background 0.2s;
+}
+.calendrier-mois-vacances td:hover {
+    background: #e0f7fa;
+}
+.modal-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal {
+    background: #fff;
+    padding: 24px 32px;
+    border-radius: 10px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    min-width: 320px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.modal-close {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 2em;
+    color: #888;
+    cursor: pointer;
+    z-index: 1010;
+}
+.modal-close:hover {
+    color: #e74c3c;
+}
+.btn-mode-vac {
+    padding: 6px 18px;
+    border-radius: 6px;
+    border: 1px solid #bbb;
+    background: #f8f8f8;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s, border 0.2s;
+}
+.btn-mode-vac.selected {
+    background: #e0e0e0;
+    border: 2px solid #1976d2;
+}
+/* Taille fixe pour les cases du calendrier vacances */
+.cell-vacances {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+  text-align: center;
+  vertical-align: middle;
+  box-sizing: border-box;
+  transition: none;
+}
+.table-vacances {
+  border-collapse: collapse;
+  margin: 0 auto 12px auto;
+}
+.table-vacances td, .table-vacances th {
+  padding: 0;
+  border: 1px solid #e0e0e0;
+}
+/* Les numéros de semaine n'ont pas de fond ni bordure */
+.table-vacances td:first-child, .table-vacances th:first-child {
+  background: none !important;
+  border: none !important;
+}
+/* Les jours RTT et vacances gardent la même taille */
+.jour-vacances, .jour-rtt {
+  box-sizing: border-box;
+}
+
+/* Styles pour les jours non travaillés (grisés) */
+.jour-non-travaille {
+    background: #f5f5f5 !important;
+    color: #999 !important;
+    cursor: not-allowed !important;
+    opacity: 0.6;
+}
+
+.jour-non-travaille:hover {
+    background: #f5f5f5 !important;
+}
+
+/* Style pour les cases à cocher des jours de travail */
+#jours-travail-container input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+#jours-travail-container label {
+    font-size: 0.95em;
+    user-select: none;
+}
+
+#jours-travail-container label:hover {
+    color: #1976d2;
+}
+
+/* Styles pour le bouton de menu */
+#btn-menu {
+    transition: all 0.2s ease;
+}
+
+#btn-menu:hover {
+    background: #1565c0 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+
+/* Styles pour les boutons du menu */
+#menu-modal-bg button {
+    transition: all 0.2s ease;
+}
+
+#menu-modal-bg button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Styles pour les modules du menu */
+.menu-module {
+    transition: all 0.2s ease;
+}
+
+.menu-module:hover {
+    background: #e3f2fd !important;
+    border-color: #1976d2 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Style pour les lignes des jours non travaillés dans le tableau */
+.jour-non-travaille-row {
+    background-color: #f5f5f5 !important;
+    opacity: 0.6;
+}
+
+.jour-non-travaille-row td {
+    color: #999 !important;
+}
+
+/* Style pour le tableau des jours saisis */
+#table-jours {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 24px auto;
+  font-size: 15px;
+  background: #fff;
+  box-shadow: 0 2px 8px #0001;
+}
+#table-jours th, #table-jours td {
+  border: 1px solid #d0d0d0;
+  padding: 7px 10px;
+  text-align: center;
+}
+#table-jours th {
+  background: #444;
+  color: #fff;
+  font-weight: bold;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+}
+#table-jours tbody tr:nth-child(even) {
+  background: #f4f4f4;
+}
+#table-jours tbody tr:nth-child(odd) {
+  background: #fff;
+}
+#table-jours td {
+  font-size: 14px;
+}
+#table-jours .jour-non-travaille-row {
+  background: #eee !important;
+  color: #aaa;
+}
+#table-jours .ecart-positif {
+  color: #388e3c;
+  font-weight: bold;
+}
+#table-jours .ecart-negatif {
+  color: #d32f2f;
+  font-weight: bold;
+}
+#table-jours .btn-supprimer {
+  background: #d32f2f;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+#table-jours .btn-supprimer:hover {
+  background: #b71c1c;
+} 
