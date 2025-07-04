@@ -1240,7 +1240,7 @@ function updateMidiIndication() {
 }
 if (calcPauseDebut) calcPauseDebut.addEventListener('input', updateMidiIndication);
 if (calcPauseFin) calcPauseFin.addEventListener('input', updateMidiIndication);
-updateMidiIndication();
+updateMidiIndication(); 
 
 ['zero-arrivee','zero-depart','zero-pause-debut','zero-pause-fin','zero-pause1-debut','zero-pause1-fin'].forEach(id => {
     const el = document.getElementById(id);
