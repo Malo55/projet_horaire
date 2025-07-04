@@ -1,0 +1,12 @@
+Mode RHT :
+Fonctions :
+- possibilité de rentrer les heures de rht
+- possibilité de rentrer des demi journées de rht
+- possibilité de créer une récurence dans le posage de rht (sur des journées entières, ou des plages horaires, 1/2 journée?)
+- dashboard de rht avec (nombres d'heures passées en rht, nombre d'heures ecretée, nombre de jour prévus restants, date de début et de fin, graphes de l'évolution du nombres d'heures passée en rht par semaine, graphe d'heure ecreté)
+
+Calculs :
+- si heure a faire > heures faites, bascule des heures manquantes en heure rht
+- si heure a faire < heures faites, pas d'ajout d'heure sup
+- si heures supp, les comptabiliser dans un compteur pour savoir combien on a "perdu"
+- 
