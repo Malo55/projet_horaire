@@ -291,9 +291,15 @@ function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pauseSupAct
     const arriveeMin = toMinutes(arrivee);
     const departMin = toMinutes(depart);
     let totalMinutes = departMin - arriveeMin;
-    // Pause déjeuner (toujours déduite)
+    // Pause déjeuner (toujours déduite, au moins le minimum paramétré)
+    let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
+    let pauseMidi = 0;
     if (pauseDejDebut && pauseDejFin) {
-        totalMinutes -= (toMinutes(pauseDejFin) - toMinutes(pauseDejDebut));
+        pauseMidi = toMinutes(pauseDejFin) - toMinutes(pauseDejDebut);
+        if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
+        totalMinutes -= pauseMidi;
+    } else {
+        totalMinutes -= pauseMidiMin;
     }
     // Pause matin : seul l'excédent > pause offerte est déduit
     if (pause1Debut && pause1Fin) {
