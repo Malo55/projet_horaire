@@ -417,11 +417,12 @@ function afficherJours() {
                 suppPauseAff = `<br><span style=\"font-size:0.95em;color:#555;\">(${suppDec} / -${suppHHMM})</span>`;
             }
         }
+        let pauseCell = hasPause ? `${totalPauseHHMM}${suppPauseAff}` : '-';
         tr.innerHTML = `
             <td>${formaterDate(jour.date)}</td>
             <td>${jour.arrivee}</td>
             <td>${midiCell}</td>
-            <td class="pause-cell">${hasPause ? totalPauseHHMM + suppPauseAff : '-'}</td>
+            <td class="pause-cell">${pauseCell}</td>
             <td>${jour.depart}</td>
             <td>${(isVac || isRtt) ? '0.00' : heuresTravDyn.toFixed(2)}<br><span style="font-size:0.95em;color:#555;">${heuresTravHHMM}</span></td>
             <td class="${ecartClassDyn}">${ecartAfficheDyn}</td>
