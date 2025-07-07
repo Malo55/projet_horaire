@@ -41,6 +41,15 @@ x- Module de simulation journalière
 - si je rentre 6 mise en forme auto à 06:00
 - affichage heure sup en fonction des saisies
 
+x- Module de calcul du temps de pause
+- numero a partir de 1 et mise en forme qui tient quand on supprime une ligne
+- boutton pour ajouter une ligne de pause
+- possibilité de supprimer une ligne
+- la somme doit etre affiché en HH:MM et x,xx
+- a coté de la somme il doit y avoir le delta par rapport au paramètre temps de pause
+- mise en forme conditionnelle du delta en fonction du positif/negatif
+-
+
 x- Module de jour saisi 
 - affichage date, arrivée debut/fin midi, depart, cumul pause, heures travaillées HH:MM et x,xx, écart HH:MM et x,xx, action supprimer
 - tri par date
