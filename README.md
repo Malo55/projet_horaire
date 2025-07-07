@@ -2,11 +2,11 @@
 
 Problème de calcul du nombre d'heure supplémentaire dans les jours saisis ou dans le module zéro
 
-Persistance des entrées dans les modules de calcul en local
-La plage ne doit pas limiter la saisie mais afficher une icone alarme
-
 À AJOUTER :
 Un switch pour afficher les heures en HH:MM:SS ou en HH:MM que pour les champs du calendrier
+Un convertisseur HH:MM en x,xx et vice versa
+Affichage des h sup en x,xx aussi (à coté ou en dessous)
+
 Un mode RHT
 Un affichage du temps de pause matin et midi
 Peut etre un ajout d'un + pour ajouter autant de pause que necessaire dans les outils de calculs et de calendrier
