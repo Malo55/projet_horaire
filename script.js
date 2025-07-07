@@ -596,6 +596,7 @@ function formatHeureInput(input) {
         } else {
             input.value = '';
         }
+        updatePause3Total();
     });
 }
 ['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin','arrivee','depart','pause-debut','pause-fin','pause2-debut','pause2-fin'].forEach(id => {
@@ -1534,3 +1535,169 @@ function updateZeroPlages() {
 });
 // Appel initial
 updateZeroPlages();
+
+// --- Module 3 : calculette pause ---
+function formatHeureInputPause3(input) {
+    input.addEventListener('input', function(e) {
+        let v = input.value.replace(/[^0-9]/g, '');
+        if (v.length > 4) v = v.slice(0,4);
+        if (v.length >= 3) {
+            input.value = v.slice(0,2) + ':' + v.slice(2,4);
+        } else if (v.length >= 1) {
+            input.value = v;
+        }
+    });
+    input.addEventListener('blur', function() {
+        let v = input.value.replace(/[^0-9]/g, '');
+        if (v.length === 1) v = '0' + v;
+        if (v.length === 3) v = '0' + v;
+        if (v.length === 4) {
+            let h = v.slice(0,2);
+            let m = v.slice(2,4);
+            let hNum = parseInt(h, 10);
+            let mNum = parseInt(m, 10);
+            if (isNaN(hNum) || isNaN(mNum) || hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
+                input.value = '';
+            } else {
+                input.value = h.padStart(2, '0') + ':' + m.padStart(2, '0');
+            }
+        } else if (v.length === 2) {
+            let hNum = parseInt(v, 10);
+            if (isNaN(hNum) || hNum < 0 || hNum > 23) {
+                input.value = '';
+            } else {
+                input.value = v.padStart(2, '0') + ':00';
+            }
+        } else {
+            input.value = '';
+        }
+        updatePause3Total();
+    });
+}
+function toMinutesPause3(hhmm) {
+    if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+}
+function updatePause3Total() {
+    const lignes = document.querySelectorAll('#pause3-lignes .pause3-ligne');
+    let total = 0;
+    lignes.forEach(ligne => {
+        const debut = ligne.querySelector('.pause3-debut').value;
+        const fin = ligne.querySelector('.pause3-fin').value;
+        const debutMin = toMinutesPause3(debut);
+        const finMin = toMinutesPause3(fin);
+        if (debutMin !== null && finMin !== null && finMin > debutMin) {
+            total += (finMin - debutMin);
+        }
+    });
+    // Affichage total minutes + heures
+    const totalHeures = (total / 60).toFixed(2);
+    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    let supp = total - pauseOfferteVal;
+    let suppAff = '';
+    if (supp !== 0) {
+        suppAff = ` | <span id='pause3-supp-aff'>${supp > 0 ? '+' : ''}${supp} min (${(supp/60).toFixed(2)} h)</span>`;
+    } else {
+        suppAff = ` | <span id='pause3-supp-aff'>0 min (0.00 h)</span>`;
+    }
+    document.getElementById('pause3-total').innerHTML = `${total} min (${totalHeures} h)${suppAff}`;
+    // Coloration dynamique
+    const suppSpan = document.getElementById('pause3-supp-aff');
+    if (suppSpan) {
+        if (supp < 0) {
+            suppSpan.style.color = 'green';
+        } else if (supp > 0) {
+            suppSpan.style.color = 'red';
+        } else {
+            suppSpan.style.color = 'black';
+        }
+    }
+    // Renumérote les labels
+    document.querySelectorAll('#pause3-lignes .pause3-ligne').forEach((l, i) => {
+        l.querySelector('span').textContent = (i+1).toString();
+    });
+}
+function addPause3Ligne(nom) {
+    const lignesDiv = document.getElementById('pause3-lignes');
+    const idx = lignesDiv.querySelectorAll('.pause3-ligne').length + 1;
+    const div = document.createElement('div');
+    div.className = 'pause3-ligne';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '10px';
+    div.style.marginBottom = '6px';
+    div.innerHTML = `<span>pause${idx}</span>
+        <input type="text" class="pause3-debut" placeholder="Début" style="width:60px;" inputmode="numeric" autocomplete="off">
+        <span>à</span>
+        <input type="text" class="pause3-fin" placeholder="Fin" style="width:60px;" inputmode="numeric" autocomplete="off">
+        <button type="button" class="pause3-add" style="margin-left:8px; font-size:1.2em;">+</button>
+        <button type="button" class="pause3-del" style="margin-left:4px; font-size:1.2em;">🗑️</button>`;
+    lignesDiv.appendChild(div);
+    const debut = div.querySelector('.pause3-debut');
+    const fin = div.querySelector('.pause3-fin');
+    formatHeureInputPause3(debut);
+    formatHeureInputPause3(fin);
+    debut.addEventListener('input', updatePause3Total);
+    fin.addEventListener('input', updatePause3Total);
+    debut.addEventListener('blur', updatePause3Total);
+    fin.addEventListener('blur', updatePause3Total);
+    div.querySelector('.pause3-add').addEventListener('click', function() {
+        addPause3Ligne();
+        updatePause3Total();
+    });
+    div.querySelector('.pause3-del').addEventListener('click', function() {
+        div.remove();
+        updatePause3Total();
+        // Renumérote les labels
+        document.querySelectorAll('#pause3-lignes .pause3-ligne').forEach((l, i) => {
+            l.querySelector('span').textContent = 'pause' + (i+1);
+        });
+    });
+}
+// Initialisation du module 3
+(function() {
+    const debut = document.querySelector('#pause3-lignes .pause3-debut');
+    const fin = document.querySelector('#pause3-lignes .pause3-fin');
+    formatHeureInputPause3(debut);
+    formatHeureInputPause3(fin);
+    debut.addEventListener('input', updatePause3Total);
+    fin.addEventListener('input', updatePause3Total);
+    debut.addEventListener('blur', updatePause3Total);
+    fin.addEventListener('blur', updatePause3Total);
+    document.querySelector('#pause3-lignes .pause3-add').addEventListener('click', function() {
+        addPause3Ligne();
+        updatePause3Total();
+    });
+    document.getElementById('pause3-reset').addEventListener('click', function() {
+        const lignesDiv = document.getElementById('pause3-lignes');
+        lignesDiv.innerHTML = '';
+        // Ajoute la première ligne
+        const div = document.createElement('div');
+        div.className = 'pause3-ligne';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.gap = '10px';
+        div.style.marginBottom = '6px';
+        div.innerHTML = `<span>pause1</span>
+            <input type="text" class="pause3-debut" placeholder="Début" style="width:60px;" inputmode="numeric" autocomplete="off">
+            <span>à</span>
+            <input type="text" class="pause3-fin" placeholder="Fin" style="width:60px;" inputmode="numeric" autocomplete="off">
+            <button type="button" class="pause3-add" style="margin-left:8px; font-size:1.2em;">+</button>`;
+        lignesDiv.appendChild(div);
+        const debut = div.querySelector('.pause3-debut');
+        const fin = div.querySelector('.pause3-fin');
+        formatHeureInputPause3(debut);
+        formatHeureInputPause3(fin);
+        debut.addEventListener('input', updatePause3Total);
+        fin.addEventListener('input', updatePause3Total);
+        debut.addEventListener('blur', updatePause3Total);
+        fin.addEventListener('blur', updatePause3Total);
+        div.querySelector('.pause3-add').addEventListener('click', function() {
+            addPause3Ligne();
+            updatePause3Total();
+        });
+        updatePause3Total();
+    });
+    updatePause3Total();
+})();
