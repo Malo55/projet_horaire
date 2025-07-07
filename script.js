@@ -348,26 +348,89 @@ function afficherJours() {
         let ecartAfficheDyn = (isVac || isRtt) ? (isRtt ? '-' : '') + heuresJour.toFixed(2) : (ecartDyn >= 0 ? '+' : '') + ecartDyn.toFixed(2);
         const ecartClassDyn = ecartDyn >= 0 ? 'ecart-positif' : 'ecart-negatif';
         totalEcart += ecartDyn;
-        
+        // Pause midi fusionnée
+        let midiCell = '';
+        if (jour.pauseDejDebut && jour.pauseDejFin) {
+            const toMinutes = (h) => {
+                if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+                const [hh, mm] = h.split(':').map(Number);
+                return hh * 60 + mm;
+            };
+            const debutMin = toMinutes(jour.pauseDejDebut);
+            const finMin = toMinutes(jour.pauseDejFin);
+            let diff = (debutMin !== null && finMin !== null && finMin > debutMin) ? (finMin - debutMin) : null;
+            let diffDec = diff !== null ? (diff/60).toFixed(2) : '';
+            let diffHHMM = diff !== null ? `${String(Math.floor(diff/60)).padStart(2,'0')}:${String(diff%60).padStart(2,'0')}` : '';
+            midiCell = `${jour.pauseDejDebut} à ${jour.pauseDejFin}` + (diff !== null ? `<br><span style=\"font-size:0.95em;color:#555;\">(${diffDec} / ${diffHHMM})</span>` : '');
+        } else {
+            midiCell = '';
+        }
+        // Heures travaillées aussi en HH:MM
+        const heuresTravHHMM = fractionToHHMM(heuresTravDyn);
         // Ajouter une classe pour griser les jours non travaillés
         const rowClass = !isJourTravailleJour && !isVac && !isRtt ? 'jour-non-travaille-row' : '';
-        
+        // Calcul du total des pauses prises (hors pause midi)
+        let totalPause = 0;
+        let hasPause = false;
+        // Pause matin
+        if (jour.pause1Debut && jour.pause1Fin) {
+            const toMinutes = (h) => {
+                if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+                const [hh, mm] = h.split(':').map(Number);
+                return hh * 60 + mm;
+            };
+            const debutMin = toMinutes(jour.pause1Debut);
+            const finMin = toMinutes(jour.pause1Fin);
+            if (debutMin !== null && finMin !== null && finMin > debutMin) {
+                totalPause += (finMin - debutMin);
+                hasPause = true;
+            }
+        }
+        // Pause supp
+        if (jour.pauseSupActive && jour.pause2Debut && jour.pause2Fin) {
+            const toMinutes = (h) => {
+                if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+                const [hh, mm] = h.split(':').map(Number);
+                return hh * 60 + mm;
+            };
+            const debutMin = toMinutes(jour.pause2Debut);
+            const finMin = toMinutes(jour.pause2Fin);
+            if (debutMin !== null && finMin !== null && finMin > debutMin) {
+                totalPause += (finMin - debutMin);
+                hasPause = true;
+            }
+        }
+        // Format HH:MM
+        let totalPauseHHMM = `${String(Math.floor(totalPause/60)).padStart(2,'0')}:${String(totalPause%60).padStart(2,'0')}`;
+        // Temps supplémentaire par rapport au paramètre pause offerte
+        let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+        let suppPause = totalPause - pauseOfferteVal;
+        let suppPauseAff = '';
+        if (hasPause) {
+            if (suppPause > 0) {
+                let suppHHMM = `${String(Math.floor(suppPause/60)).padStart(2,'0')}:${String(suppPause%60).padStart(2,'0')}`;
+                let suppDec = (suppPause/60).toFixed(2);
+                suppPauseAff = `<br><span style=\"font-size:0.95em;color:#555;\">(+${suppDec} / ${suppHHMM})</span>`;
+            } else if (suppPause < 0) {
+                let suppHHMM = `${String(Math.floor(Math.abs(suppPause)/60)).padStart(2,'0')}:${String(Math.abs(suppPause)%60).padStart(2,'0')}`;
+                let suppDec = (suppPause/60).toFixed(2);
+                suppPauseAff = `<br><span style=\"font-size:0.95em;color:#555;\">(${suppDec} / -${suppHHMM})</span>`;
+            }
+        }
         tr.innerHTML = `
             <td>${formaterDate(jour.date)}</td>
             <td>${jour.arrivee}</td>
-            <td>${jour.pauseDejDebut}</td>
-            <td>${jour.pauseDejFin}</td>
+            <td>${midiCell}</td>
+            <td class="pause-cell">${hasPause ? totalPauseHHMM + suppPauseAff : '-'}</td>
             <td>${jour.depart}</td>
-            <td>${(isVac || isRtt) ? '0.00' : heuresTravDyn.toFixed(2)}</td>
+            <td>${(isVac || isRtt) ? '0.00' : heuresTravDyn.toFixed(2)}<br><span style="font-size:0.95em;color:#555;">${heuresTravHHMM}</span></td>
             <td class="${ecartClassDyn}">${ecartAfficheDyn}</td>
             <td><button class="btn-supprimer" data-idx="${idx}">Supprimer</button></td>
         `;
-        
         // Appliquer la classe CSS pour griser la ligne
         if (rowClass) {
             tr.className = rowClass;
         }
-        
         tableBody.appendChild(tr);
     });
     // On ajoute la déduction RTT pour les jours RTT sans saisie d'horaire
@@ -858,6 +921,7 @@ function getHeuresJourMinutes() {
     return Math.round(val * 60);
 }
 function getPauseSupMinutes() {
+    if (!calcPause2Debut || !calcPause2Fin) return 0;
     const debut = toMinutes(calcPause2Debut.value);
     const fin = toMinutes(calcPause2Fin.value);
     if (debut !== null && fin !== null && fin > debut) {
@@ -970,8 +1034,28 @@ function updateCalculateur() {
         departIndication.textContent = '';
         departIndication.style.color = '';
     }
-    let pauseMins = getPauseMinutesAvecMin();
-    let pause1Mins = getPause1Minutes();
+    // Pause matin : mode durée ou début/fin
+    let pause1Mins = 0;
+    if (document.getElementById('calc-pause1-mode-duree')?.checked) {
+        const duree = document.getElementById('calc-pause1-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pause1Mins = hh * 60 + mm;
+        }
+    } else {
+        pause1Mins = getPause1Minutes();
+    }
+    // Pause midi : mode durée ou début/fin
+    let pauseMins = 0;
+    if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
+        const duree = document.getElementById('calc-pause-midi-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pauseMins = hh * 60 + mm;
+        }
+    } else {
+        pauseMins = getPauseMinutesAvecMin();
+    }
     let travailMins = getHeuresJourMinutes();
     let pauseSup = getPauseSupMinutes();
     let pauseOfferteVal = getPauseOfferte();
@@ -1020,6 +1104,7 @@ function updateCalculateur() {
         lastInput === 'calc-pause1-debut' || lastInput === 'calc-pause1-fin' ||
         lastInput === 'calc-pause2-debut' || lastInput === 'calc-pause2-fin' ||
         lastInput === 'calc-pause-debut' || lastInput === 'calc-pause-fin' ||
+        lastInput === 'calc-pause1-duree' || lastInput === 'calc-pause-midi-duree' ||
         lastInput === 'heures-jour' || lastInput === 'heures-jour-hhmm'
     ) {
         // Si l'arrivée est remplie, on recalcule le départ
@@ -1063,7 +1148,7 @@ function updateCalculateur() {
 });
 
 // Affichage initial correct de la pause supplémentaire si la case est cochée
-calcPauseSupFields.style.display = pauseCheckbox.checked ? '' : 'none';
+if (typeof calcPauseSupFields !== 'undefined' && calcPauseSupFields) calcPauseSupFields.style.display = pauseCheckbox.checked ? '' : 'none';
 
 if (heuresJourInput) {
     heuresJourInput.addEventListener('input', updateCalculateur);
@@ -1312,10 +1397,50 @@ function calculerHeuresSupZero() {
     // Récupération des valeurs
     const arrivee = zeroArrivee ? zeroArrivee.value : '';
     const depart = zeroDepart ? zeroDepart.value : '';
-    const pause1Debut = zeroPause1Debut ? zeroPause1Debut.value : '';
-    const pause1Fin = zeroPause1Fin ? zeroPause1Fin.value : '';
-    const pauseMidiDebut = zeroPauseMidiDebut ? zeroPauseMidiDebut.value : '';
-    const pauseMidiFin = zeroPauseMidiFin ? zeroPauseMidiFin.value : '';
+    // Pause matin
+    let pause1DureeMin = null;
+    if (document.getElementById('zero-pause1-mode-duree')?.checked) {
+        const duree = document.getElementById('zero-pause1-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pause1DureeMin = hh * 60 + mm;
+        }
+    } else {
+        const pause1Debut = zeroPause1Debut ? zeroPause1Debut.value : '';
+        const pause1Fin = zeroPause1Fin ? zeroPause1Fin.value : '';
+        const toMinutes = (h) => {
+            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+            const [hh, mm] = h.split(':').map(Number);
+            return hh * 60 + mm;
+        };
+        const debutMin = toMinutes(pause1Debut);
+        const finMin = toMinutes(pause1Fin);
+        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+            pause1DureeMin = finMin - debutMin;
+        }
+    }
+    // Pause midi
+    let pauseMidiDureeMin = null;
+    if (document.getElementById('zero-pause-midi-mode-duree')?.checked) {
+        const duree = document.getElementById('zero-pause-midi-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pauseMidiDureeMin = hh * 60 + mm;
+        }
+    } else {
+        const pauseMidiDebut = zeroPauseMidiDebut ? zeroPauseMidiDebut.value : '';
+        const pauseMidiFin = zeroPauseMidiFin ? zeroPauseMidiFin.value : '';
+        const toMinutes = (h) => {
+            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+            const [hh, mm] = h.split(':').map(Number);
+            return hh * 60 + mm;
+        };
+        const debutMin = toMinutes(pauseMidiDebut);
+        const finMin = toMinutes(pauseMidiFin);
+        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+            pauseMidiDureeMin = finMin - debutMin;
+        }
+    }
     // Fonctions utilitaires
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
@@ -1325,10 +1450,6 @@ function calculerHeuresSupZero() {
     // Conversion
     const arriveeMin = toMinutes(arrivee);
     const departMin = toMinutes(depart);
-    const pause1DebutMin = toMinutes(pause1Debut);
-    const pause1FinMin = toMinutes(pause1Fin);
-    const pauseMidiDebutMin = toMinutes(pauseMidiDebut);
-    const pauseMidiFinMin = toMinutes(pauseMidiFin);
     // Paramètres globaux
     let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
     let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
@@ -1336,25 +1457,31 @@ function calculerHeuresSupZero() {
     // Calcul
     if (
         arriveeMin === null || departMin === null ||
-        pauseMidiDebutMin === null || pauseMidiFinMin === null ||
-        pause1DebutMin === null || pause1FinMin === null
+        pauseMidiDureeMin === null || pause1DureeMin === null
     ) {
         zeroHeuresSup.textContent = '';
         return;
     }
     let dureeTravail = departMin - arriveeMin;
     // Pause midi (toujours déduite, au moins le minimum)
-    let pauseMidi = pauseMidiFinMin - pauseMidiDebutMin;
+    let pauseMidi = pauseMidiDureeMin;
     if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
     dureeTravail -= pauseMidi;
     // Pause matin : seul l'excédent > pause offerte est déduit
-    let pauseMatin = pause1FinMin - pause1DebutMin;
+    let pauseMatin = pause1DureeMin;
     if (pauseMatin > pauseOfferteVal) {
         dureeTravail -= (pauseMatin - pauseOfferteVal);
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
-    zeroHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
+    // Conversion en HH:MM
+    let totalMinutes = Math.round(heuresSup * 60);
+    let signe = totalMinutes >= 0 ? '+' : '-';
+    let absMinutes = Math.abs(totalMinutes);
+    let hh = Math.floor(absMinutes / 60).toString().padStart(2, '0');
+    let mm = (absMinutes % 60).toString().padStart(2, '0');
+    let hhmm = `(${signe}${hh}:${mm})`;
+    zeroHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h ' + hhmm;
     zeroHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
 }
 
@@ -1558,18 +1685,23 @@ function formatHeureInputPause3(input) {
             let mNum = parseInt(m, 10);
             if (isNaN(hNum) || isNaN(mNum) || hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
                 input.value = '';
+                input.style.background = '#ffcccc';
             } else {
                 input.value = h.padStart(2, '0') + ':' + m.padStart(2, '0');
+                input.style.background = '';
             }
         } else if (v.length === 2) {
             let hNum = parseInt(v, 10);
             if (isNaN(hNum) || hNum < 0 || hNum > 23) {
                 input.value = '';
+                input.style.background = '#ffcccc';
             } else {
                 input.value = v.padStart(2, '0') + ':00';
+                input.style.background = '';
             }
         } else {
             input.value = '';
+            input.style.background = '#ffcccc';
         }
         updatePause3Total();
     });
@@ -1649,10 +1781,6 @@ function addPause3Ligne(nom) {
     div.querySelector('.pause3-del').addEventListener('click', function() {
         div.remove();
         updatePause3Total();
-        // Renumérote les labels
-        document.querySelectorAll('#pause3-lignes .pause3-ligne').forEach((l, i) => {
-            l.querySelector('span').textContent = 'pause' + (i+1);
-        });
     });
 }
 // Initialisation du module 3
@@ -1701,3 +1829,396 @@ function addPause3Ligne(nom) {
     });
     updatePause3Total();
 })();
+
+// Ajout de la synchronisation automatique des champs durée pour les pauses matin et midi du module 2
+function updateZeroPauseDurees() {
+    // Pause matin
+    const debut1 = document.getElementById('zero-pause1-debut');
+    const fin1 = document.getElementById('zero-pause1-fin');
+    const duree1 = document.getElementById('zero-pause1-duree');
+    if (debut1 && fin1 && duree1) {
+        if (/^\d{2}:\d{2}$/.test(debut1.value) && /^\d{2}:\d{2}$/.test(fin1.value)) {
+            const [h1, m1] = debut1.value.split(':').map(Number);
+            const [h2, m2] = fin1.value.split(':').map(Number);
+            let min1 = h1 * 60 + m1;
+            let min2 = h2 * 60 + m2;
+            let diff = min2 - min1;
+            if (diff >= 0) {
+                let hh = Math.floor(diff / 60).toString().padStart(2, '0');
+                let mm = (diff % 60).toString().padStart(2, '0');
+                duree1.value = hh + ':' + mm;
+            } else {
+                duree1.value = '';
+            }
+        } else {
+            duree1.value = '';
+        }
+    }
+    // Pause midi
+    const debutMidi = document.getElementById('zero-pause-debut');
+    const finMidi = document.getElementById('zero-pause-fin');
+    const dureeMidi = document.getElementById('zero-pause-midi-duree');
+    if (debutMidi && finMidi && dureeMidi) {
+        if (/^\d{2}:\d{2}$/.test(debutMidi.value) && /^\d{2}:\d{2}$/.test(finMidi.value)) {
+            const [h1, m1] = debutMidi.value.split(':').map(Number);
+            const [h2, m2] = finMidi.value.split(':').map(Number);
+            let min1 = h1 * 60 + m1;
+            let min2 = h2 * 60 + m2;
+            let diff = min2 - min1;
+            if (diff >= 0) {
+                let hh = Math.floor(diff / 60).toString().padStart(2, '0');
+                let mm = (diff % 60).toString().padStart(2, '0');
+                dureeMidi.value = hh + ':' + mm;
+            } else {
+                dureeMidi.value = '';
+            }
+        } else {
+            dureeMidi.value = '';
+        }
+    }
+}
+['zero-pause1-debut','zero-pause1-fin','zero-pause-debut','zero-pause-fin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateZeroPauseDurees);
+});
+// Appliquer la mise en forme automatique aux champs de durée du module 2
+['zero-pause1-duree', 'zero-pause-midi-duree'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        formatHeureInputPause3(el);
+        el.addEventListener('input', function() {
+            // Sauvegarde en localStorage
+            localStorage.setItem('zero_' + id, el.value);
+            // Calcul seulement si le mode durée est actif
+            if (
+                (id === 'zero-pause1-duree' && document.getElementById('zero-pause1-mode-duree')?.checked) ||
+                (id === 'zero-pause-midi-duree' && document.getElementById('zero-pause-midi-mode-duree')?.checked)
+            ) {
+                calculerHeuresSupZero();
+            }
+        });
+        // Restauration
+        const val = localStorage.getItem('zero_' + id);
+        if (val) el.value = val;
+    }
+});
+
+// Gestion de l'affichage des modes de saisie pause matin (début/fin ou durée)
+const zeroPause1ModeDebutFin = document.getElementById('zero-pause1-mode-debutfin');
+const zeroPause1ModeDuree = document.getElementById('zero-pause1-mode-duree');
+const zeroPause1DebutFinFields = document.getElementById('zero-pause1-debutfin-fields');
+const zeroPause1DureeField = document.getElementById('zero-pause1-duree-field');
+if (zeroPause1ModeDebutFin && zeroPause1ModeDuree && zeroPause1DebutFinFields && zeroPause1DureeField) {
+    zeroPause1ModeDebutFin.addEventListener('change', function() {
+        if (zeroPause1ModeDebutFin.checked) {
+            zeroPause1DebutFinFields.style.display = 'flex';
+            zeroPause1DureeField.style.display = 'none';
+        }
+    });
+    zeroPause1ModeDuree.addEventListener('change', function() {
+        if (zeroPause1ModeDuree.checked) {
+            zeroPause1DebutFinFields.style.display = 'none';
+            zeroPause1DureeField.style.display = 'flex';
+        }
+    });
+}
+// Gestion de l'affichage des modes de saisie pause midi (début/fin ou durée)
+const zeroPauseMidiModeDebutFin = document.getElementById('zero-pause-midi-mode-debutfin');
+const zeroPauseMidiModeDuree = document.getElementById('zero-pause-midi-mode-duree');
+const zeroPauseMidiDebutFinFields = document.getElementById('zero-pause-midi-debutfin-fields');
+const zeroPauseMidiDureeField = document.getElementById('zero-pause-midi-duree-field');
+if (zeroPauseMidiModeDebutFin && zeroPauseMidiModeDuree && zeroPauseMidiDebutFinFields && zeroPauseMidiDureeField) {
+    zeroPauseMidiModeDebutFin.addEventListener('change', function() {
+        if (zeroPauseMidiModeDebutFin.checked) {
+            zeroPauseMidiDebutFinFields.style.display = 'flex';
+            zeroPauseMidiDureeField.style.display = 'none';
+        }
+    });
+    zeroPauseMidiModeDuree.addEventListener('change', function() {
+        if (zeroPauseMidiModeDuree.checked) {
+            zeroPauseMidiDebutFinFields.style.display = 'none';
+            zeroPauseMidiDureeField.style.display = 'flex';
+        }
+    });
+}
+
+// ... existing code ...
+// Gestion de l'affichage des modes de saisie pause matin (début/fin ou durée) pour le module 1
+const calcPause1ModeDebutFin = document.getElementById('calc-pause1-mode-debutfin');
+const calcPause1ModeDuree = document.getElementById('calc-pause1-mode-duree');
+const calcPause1DebutFinFields = document.getElementById('calc-pause1-debutfin-fields');
+const calcPause1DureeField = document.getElementById('calc-pause1-duree-field');
+if (calcPause1ModeDebutFin && calcPause1ModeDuree && calcPause1DebutFinFields && calcPause1DureeField) {
+    calcPause1ModeDebutFin.addEventListener('change', function() {
+        if (calcPause1ModeDebutFin.checked) {
+            calcPause1DebutFinFields.style.display = 'flex';
+            calcPause1DureeField.style.display = 'none';
+        }
+    });
+    calcPause1ModeDuree.addEventListener('change', function() {
+        if (calcPause1ModeDuree.checked) {
+            calcPause1DebutFinFields.style.display = 'none';
+            calcPause1DureeField.style.display = 'flex';
+        }
+    });
+}
+// Gestion de l'affichage des modes de saisie pause midi (début/fin ou durée) pour le module 1
+const calcPauseMidiModeDebutFin = document.getElementById('calc-pause-midi-mode-debutfin');
+const calcPauseMidiModeDuree = document.getElementById('calc-pause-midi-mode-duree');
+const calcPauseMidiDebutFinFields = document.getElementById('calc-pause-midi-debutfin-fields');
+const calcPauseMidiDureeField = document.getElementById('calc-pause-midi-duree-field');
+if (calcPauseMidiModeDebutFin && calcPauseMidiModeDuree && calcPauseMidiDebutFinFields && calcPauseMidiDureeField) {
+    calcPauseMidiModeDebutFin.addEventListener('change', function() {
+        if (calcPauseMidiModeDebutFin.checked) {
+            calcPauseMidiDebutFinFields.style.display = 'flex';
+            calcPauseMidiDureeField.style.display = 'none';
+        }
+    });
+    calcPauseMidiModeDuree.addEventListener('change', function() {
+        if (calcPauseMidiModeDuree.checked) {
+            calcPauseMidiDebutFinFields.style.display = 'none';
+            calcPauseMidiDureeField.style.display = 'flex';
+        }
+    });
+}
+// ... existing code ...
+
+// ... existing code ...
+// Appliquer la mise en forme automatique et la sauvegarde/restauration aux champs durée du module 1
+['calc-pause1-duree', 'calc-pause-midi-duree'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        formatHeureInputPause3(el);
+        el.addEventListener('input', function() {
+            localStorage.setItem('calculette_' + id, el.value);
+            if (
+                (id === 'calc-pause1-duree' && document.getElementById('calc-pause1-mode-duree')?.checked) ||
+                (id === 'calc-pause-midi-duree' && document.getElementById('calc-pause-midi-mode-duree')?.checked)
+            ) {
+                calculerHeuresSupCalculette();
+                updateCalculateur();
+            }
+        });
+        // Restauration
+        const val = localStorage.getItem('calculette_' + id);
+        if (val) el.value = val;
+    }
+});
+// Synchronisation automatique du champ durée si début/fin sont renseignés (module 1)
+function updateCalcPauseDurees() {
+    // Pause matin
+    const debut1 = document.getElementById('calc-pause1-debut');
+    const fin1 = document.getElementById('calc-pause1-fin');
+    const duree1 = document.getElementById('calc-pause1-duree');
+    if (debut1 && fin1 && duree1) {
+        if (/^\d{2}:\d{2}$/.test(debut1.value) && /^\d{2}:\d{2}$/.test(fin1.value)) {
+            const [h1, m1] = debut1.value.split(':').map(Number);
+            const [h2, m2] = fin1.value.split(':').map(Number);
+            let min1 = h1 * 60 + m1;
+            let min2 = h2 * 60 + m2;
+            let diff = min2 - min1;
+            if (diff >= 0) {
+                let hh = Math.floor(diff / 60).toString().padStart(2, '0');
+                let mm = (diff % 60).toString().padStart(2, '0');
+                duree1.value = hh + ':' + mm;
+            } else {
+                duree1.value = '';
+            }
+        } else {
+            duree1.value = '';
+        }
+    }
+    // Pause midi
+    const debutMidi = document.getElementById('calc-pause-debut');
+    const finMidi = document.getElementById('calc-pause-fin');
+    const dureeMidi = document.getElementById('calc-pause-midi-duree');
+    if (debutMidi && finMidi && dureeMidi) {
+        if (/^\d{2}:\d{2}$/.test(debutMidi.value) && /^\d{2}:\d{2}$/.test(finMidi.value)) {
+            const [h1, m1] = debutMidi.value.split(':').map(Number);
+            const [h2, m2] = finMidi.value.split(':').map(Number);
+            let min1 = h1 * 60 + m1;
+            let min2 = h2 * 60 + m2;
+            let diff = min2 - min1;
+            if (diff >= 0) {
+                let hh = Math.floor(diff / 60).toString().padStart(2, '0');
+                let mm = (diff % 60).toString().padStart(2, '0');
+                dureeMidi.value = hh + ':' + mm;
+            } else {
+                dureeMidi.value = '';
+            }
+        } else {
+            dureeMidi.value = '';
+        }
+    }
+}
+['calc-pause1-debut','calc-pause1-fin','calc-pause-debut','calc-pause-fin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateCalcPauseDurees);
+});
+// Adapter le calcul du module 1 pour prendre en compte le mode durée
+function calculerHeuresSupCalculette() {
+    // Récupération des valeurs
+    const arrivee = calcArrivee ? calcArrivee.value : '';
+    const depart = calcDepart ? calcDepart.value : '';
+    // Pause matin
+    let pause1DureeMin = null;
+    if (document.getElementById('calc-pause1-mode-duree')?.checked) {
+        const duree = document.getElementById('calc-pause1-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pause1DureeMin = hh * 60 + mm;
+        }
+    } else {
+        const pause1Debut = calcPause1Debut ? calcPause1Debut.value : '';
+        const pause1Fin = calcPause1Fin ? calcPause1Fin.value : '';
+        const toMinutes = (h) => {
+            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+            const [hh, mm] = h.split(':').map(Number);
+            return hh * 60 + mm;
+        };
+        const debutMin = toMinutes(pause1Debut);
+        const finMin = toMinutes(pause1Fin);
+        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+            pause1DureeMin = finMin - debutMin;
+        }
+    }
+    // Pause midi
+    let pauseMidiDureeMin = null;
+    if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
+        const duree = document.getElementById('calc-pause-midi-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pauseMidiDureeMin = hh * 60 + mm;
+        }
+    } else {
+        const pauseMidiDebut = calcPauseDebut ? calcPauseDebut.value : '';
+        const pauseMidiFin = calcPauseFin ? calcPauseFin.value : '';
+        const toMinutes = (h) => {
+            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+            const [hh, mm] = h.split(':').map(Number);
+            return hh * 60 + mm;
+        };
+        const debutMin = toMinutes(pauseMidiDebut);
+        const finMin = toMinutes(pauseMidiFin);
+        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+            pauseMidiDureeMin = finMin - debutMin;
+        }
+    }
+    // Fonctions utilitaires
+    const toMinutes = (h) => {
+        if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+        const [hh, mm] = h.split(':').map(Number);
+        return hh * 60 + mm;
+    };
+    // Conversion
+    const arriveeMin = toMinutes(arrivee);
+    const departMin = toMinutes(depart);
+    // Paramètres globaux
+    let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
+    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
+    // Calcul
+    if (
+        arriveeMin === null || departMin === null ||
+        pauseMidiDureeMin === null || pause1DureeMin === null
+    ) {
+        calcHeuresSup.textContent = '';
+        return;
+    }
+    let dureeTravail = departMin - arriveeMin;
+    // Pause midi (toujours déduite, au moins le minimum)
+    let pauseMidi = pauseMidiDureeMin;
+    if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
+    dureeTravail -= pauseMidi;
+    // Pause matin : seul l'excédent > pause offerte est déduit
+    let pauseMatin = pause1DureeMin;
+    if (pauseMatin > pauseOfferteVal) {
+        dureeTravail -= (pauseMatin - pauseOfferteVal);
+    }
+    // Heures sup = durée de travail (en heures) - heures à faire par jour
+    let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
+    calcHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
+    calcHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
+}
+// ... existing code ...
+
+// ... existing code ...
+// 1. Appliquer la mise en forme automatique à tous les champs horaires (y compris dynamiques)
+function applyFormatHeureInputToAll() {
+    // Module 1
+    ['calc-arrivee','calc-depart','calc-pause1-debut','calc-pause1-fin','calc-pause1-duree','calc-pause-debut','calc-pause-fin','calc-pause-midi-duree'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) formatHeureInputPause3(el);
+    });
+    // Module 2
+    ['zero-arrivee','zero-depart','zero-pause1-debut','zero-pause1-fin','zero-pause1-duree','zero-pause-debut','zero-pause-fin','zero-pause-midi-duree'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) formatHeureInputPause3(el);
+    });
+    // Module 3 (tous les champs dynamiques)
+    document.querySelectorAll('#pause3-lignes .pause3-debut, #pause3-lignes .pause3-fin').forEach(el => {
+        formatHeureInputPause3(el);
+    });
+}
+// Appel initial après chargement du DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyFormatHeureInputToAll);
+} else {
+    applyFormatHeureInputToAll();
+}
+// Appel après chaque ajout de ligne dans le module 3
+const oldAddPause3Ligne = addPause3Ligne;
+addPause3Ligne = function(nom) {
+    oldAddPause3Ligne(nom);
+    applyFormatHeureInputToAll();
+};
+// Appel après reset du module 3
+const oldPause3Reset = document.getElementById('pause3-reset')?.onclick;
+document.getElementById('pause3-reset')?.addEventListener('click', function() {
+    setTimeout(applyFormatHeureInputToAll, 10);
+    if (oldPause3Reset) oldPause3Reset();
+});
+// ... existing code ...
+// 2. Corriger la logique de calcul pour chaque module (voir calculerHeuresSupCalculette et calculerHeuresSupZero)
+// (Le code existant est déjà correct si on applique bien la logique de mode durée/début-fin et la mise en forme)
+// ... existing code ...
+
+// ... existing code ...
+// Module 4 : convertisseur HH:MM <-> x,xx h
+(function() {
+    const convHHMM = document.getElementById('conv-hhmm');
+    const convDecimal = document.getElementById('conv-decimal');
+    // Restauration locale
+    if (convHHMM && localStorage.getItem('convertisseur_hhmm')) convHHMM.value = localStorage.getItem('convertisseur_hhmm');
+    if (convDecimal && localStorage.getItem('convertisseur_decimal')) convDecimal.value = localStorage.getItem('convertisseur_decimal');
+    // Formatage HH:MM
+    if (convHHMM) {
+        formatHeureInputPause3(convHHMM);
+        convHHMM.addEventListener('input', function() {
+            // Conversion HH:MM -> décimal
+            let v = convHHMM.value;
+            if (/^\d{2}:\d{2}$/.test(v)) {
+                const [h, m] = v.split(':').map(Number);
+                let dec = h + m/60;
+                convDecimal.value = dec.toFixed(2).replace('.', ',');
+                localStorage.setItem('convertisseur_decimal', convDecimal.value);
+            }
+            localStorage.setItem('convertisseur_hhmm', convHHMM.value);
+        });
+    }
+    if (convDecimal) {
+        convDecimal.addEventListener('input', function() {
+            // Conversion décimal -> HH:MM
+            let v = convDecimal.value.replace(',', '.');
+            let dec = parseFloat(v);
+            if (!isNaN(dec)) {
+                let h = Math.floor(dec);
+                let m = Math.round((dec - h) * 60);
+                convHHMM.value = h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
+                localStorage.setItem('convertisseur_hhmm', convHHMM.value);
+            }
+            localStorage.setItem('convertisseur_decimal', convDecimal.value);
+        });
+    }
+})();
+// ... existing code ...

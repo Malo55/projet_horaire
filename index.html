@@ -52,35 +52,55 @@
         <button id="btn-vacances" style="position: absolute; top: 0; right: 0; height: 40px;">Vacances</button>
       </div>
     </div>
-    <div style="display: flex; justify-content: center; gap: 32px; margin-bottom: 24px;">
-      <div id="calculateur-horaire" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px;">
-        <h3 style="margin-top:0;">Calculette d'heure d'arrivée/départ</h3>
+    <div id="modules-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; justify-content: center; margin-bottom: 24px;">
+      <div id="calculateur-horaire" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px;">
+        <h3 style="margin-top:0;">Module 1 : calculette de départ/arrivée</h3>
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
             <label for="calc-arrivee" style="min-width:90px;">Arrivée :</label>
             <input type="text" id="calc-arrivee" placeholder="HH:MM" style="width:80px;">
         </div>
-        <div id="calc-pause1-fields" style="margin-bottom:8px;">
-            <div style="display:flex; gap:12px; align-items:center;">
-                <label for="calc-pause1-debut" style="min-width:90px;">Pause matin :</label>
-                <input type="text" id="calc-pause1-debut" value="09:00" style="width:60px;" placeholder="HH:MM">
-                <span>à</span>
-                <input type="text" id="calc-pause1-fin" value="09:00" style="width:60px;" placeholder="HH:MM">
-            </div>
+        <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label for="calc-pause1-debut" style="min-width:90px;">Pause matin :</label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="calc-pause1-mode" id="calc-pause1-mode-debutfin" value="debutfin" checked>
+              <span>Début/fin</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="calc-pause1-mode" id="calc-pause1-mode-duree" value="duree">
+              <span>Durée</span>
+            </label>
+          </div>
+          <div id="calc-pause1-debutfin-fields" style="display:flex; gap:12px; align-items:center; margin-left:102px;">
+            <input type="text" id="calc-pause1-debut" value="09:00" style="width:60px;" placeholder="HH:MM">
+            <span>à</span>
+            <input type="text" id="calc-pause1-fin" value="09:00" style="width:60px;" placeholder="HH:MM">
+          </div>
+          <div id="calc-pause1-duree-field" style="display:none; gap:12px; align-items:center; margin-left:102px;">
+            <input type="text" id="calc-pause1-duree" placeholder="Durée" style="width:70px;" inputmode="numeric" autocomplete="off">
+          </div>
         </div>
-        <div id="calc-pause-sup-fields" style="margin-bottom:8px;">
-            <div style="display:flex; gap:12px; align-items:center;">
-                <label for="calc-pause2-debut" style="min-width:90px;">Pause supp. :</label>
-                <input type="text" id="calc-pause2-debut" value="09:00" style="width:60px;" placeholder="HH:MM">
-                <span>à</span>
-                <input type="text" id="calc-pause2-fin" value="09:00" style="width:60px;" placeholder="HH:MM">
-            </div>
-        </div>
-        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+        <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:12px;">
             <label for="calc-pause-debut" style="min-width:90px;">Pause midi :</label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="calc-pause-midi-mode" id="calc-pause-midi-mode-debutfin" value="debutfin" checked>
+              <span>Début/fin</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="calc-pause-midi-mode" id="calc-pause-midi-mode-duree" value="duree">
+              <span>Durée</span>
+            </label>
+          </div>
+          <div id="calc-pause-midi-debutfin-fields" style="display:flex; gap:12px; align-items:center; margin-left:102px;">
             <input type="text" id="calc-pause-debut" value="12:00" style="width:60px;" placeholder="HH:MM">
             <span>à</span>
             <input type="text" id="calc-pause-fin" value="12:30" style="width:60px;" placeholder="HH:MM">
             <span id="midi-indication" style="font-size:1.2em; margin-left:6px; display: flex; align-items: center; height: 32px;"></span>
+          </div>
+          <div id="calc-pause-midi-duree-field" style="display:none; gap:12px; align-items:center; margin-left:102px;">
+            <input type="text" id="calc-pause-midi-duree" placeholder="Durée" style="width:70px;" inputmode="numeric" autocomplete="off">
+          </div>
         </div>
         <div style="display:flex; gap:12px; align-items:center;">
             <label for="calc-depart" style="min-width:90px;">Départ :</label>
@@ -90,22 +110,52 @@
         <div id="calc-info" style="margin-top:10px; font-size:0.95em; color:#555;"></div>
       </div>
       <div id="zero-module" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px;">
-        <h3 style="margin-top:0;">Zero</h3>
+        <h3 style="margin-top:0;">Module 2 : simulateur journée</h3>
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
           <label for="zero-arrivee" style="min-width:90px;">Arrivée :</label>
           <input type="text" id="zero-arrivee" placeholder="HH:MM" style="width:80px;" inputmode="numeric" autocomplete="off">
         </div>
-        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
-          <label for="zero-pause1-debut" style="min-width:90px;">Pause matin :</label>
-          <input type="text" id="zero-pause1-debut" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
-          <span>à</span>
-          <input type="text" id="zero-pause1-fin" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+        <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label for="zero-pause1-debut" style="min-width:90px;">Pause matin :</label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="zero-pause1-mode" id="zero-pause1-mode-debutfin" value="debutfin" checked>
+              <span>Début/fin</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="zero-pause1-mode" id="zero-pause1-mode-duree" value="duree">
+              <span>Durée</span>
+            </label>
+          </div>
+          <div id="zero-pause1-debutfin-fields" style="display:flex; gap:12px; align-items:center; margin-left:102px;">
+            <input type="text" id="zero-pause1-debut" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+            <span>à</span>
+            <input type="text" id="zero-pause1-fin" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+          </div>
+          <div id="zero-pause1-duree-field" style="display:none; gap:12px; align-items:center; margin-left:102px;">
+            <input type="text" id="zero-pause1-duree" placeholder="Durée" style="width:70px;" inputmode="numeric" autocomplete="off">
+          </div>
         </div>
-        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
-          <label for="zero-pause-debut" style="min-width:90px;">Pause midi :</label>
-          <input type="text" id="zero-pause-debut" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
-          <span>à</span>
-          <input type="text" id="zero-pause-fin" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+        <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label for="zero-pause-debut" style="min-width:90px;">Pause midi :</label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="zero-pause-midi-mode" id="zero-pause-midi-mode-debutfin" value="debutfin" checked>
+              <span>Début/fin</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
+              <input type="radio" name="zero-pause-midi-mode" id="zero-pause-midi-mode-duree" value="duree">
+              <span>Durée</span>
+            </label>
+          </div>
+          <div id="zero-pause-midi-debutfin-fields" style="display:flex; gap:12px; align-items:center; margin-left:102px;">
+            <input type="text" id="zero-pause-debut" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+            <span>à</span>
+            <input type="text" id="zero-pause-fin" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+          </div>
+          <div id="zero-pause-midi-duree-field" style="display:none; gap:12px; align-items:center; margin-left:102px;">
+            <input type="text" id="zero-pause-midi-duree" placeholder="Durée" style="width:70px;" inputmode="numeric" autocomplete="off">
+          </div>
         </div>
         <div style="display:flex; gap:12px; align-items:center;">
           <label for="zero-depart" style="min-width:90px;">Départ :</label>
@@ -113,7 +163,7 @@
           <span id="zero-heures-sup" style="margin-left:8px; font-weight:bold; color:#1976d2;"></span>
         </div>
       </div>
-      <div id="pause-module-3" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px;">
+      <div id="pause-module-3" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px; grid-column: 1; grid-row: 2;">
         <h3 style="margin-top:0;">Module 3 : calculette pause</h3>
         <div id="pause3-lignes">
           <div class="pause3-ligne" style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
@@ -127,6 +177,17 @@
         <div style="margin: 8px 0; font-weight: bold;">Total pauses : <span id="pause3-total">0 min</span></div>
         <button type="button" id="pause3-reset" style="margin-top:8px;">Reset</button>
       </div>
+      <div id="convertisseur-module-4" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px; grid-column: 2; grid-row: 2;">
+        <h3 style="margin-top:0;">Module 4 : convertisseur</h3>
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+          <label for="conv-hhmm" style="min-width:120px;">HH:MM :</label>
+          <input type="text" id="conv-hhmm" placeholder="HH:MM" style="width:90px;" inputmode="numeric" autocomplete="off">
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <label for="conv-decimal" style="min-width:120px;">x,xx h :</label>
+          <input type="text" id="conv-decimal" placeholder="0,00" style="width:90px;" inputmode="decimal" autocomplete="off">
+        </div>
+      </div>
     </div>
     <div id="confirm-modal-bg" class="modal-bg" style="display:none;">
         <div class="modal">
@@ -139,23 +200,36 @@
         <div class="modal">
             <span class="modal-close" id="modal-close">&times;</span>
             <form id="horaire-form">
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <label for="date">Date :</label>
-                    <input type="date" id="date" name="date" required>
-                    <label for="arrivee">Heure d'arrivée :</label>
-                    <input type="text" id="arrivee" name="arrivee" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    <label for="pause-debut">Début pause déjeuner :</label>
-                    <input type="text" id="pause-debut" name="pause-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    <label for="pause-fin">Fin pause déjeuner :</label>
-                    <input type="text" id="pause-fin" name="pause-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    <label for="depart">Heure de départ :</label>
-                    <input type="text" id="depart" name="depart" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    <label><input type="checkbox" id="pause-checkbox" name="pause"> Pause supplémentaire</label>
-                    <div id="pause-fields" style="display:none; flex-direction: column; gap: 10px;">
-                        <label for="pause2-debut">Début pause supplémentaire :</label>
-                        <input type="text" id="pause2-debut" name="pause2-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                        <label for="pause2-fin">Fin pause supplémentaire :</label>
-                        <input type="text" id="pause2-fin" name="pause2-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label for="date" style="min-width: 60px;">Date :</label>
+                        <input type="date" id="date" name="date" required>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label for="arrivee" style="min-width: 120px;">Heure d'arrivée :</label>
+                        <input type="text" id="arrivee" name="arrivee" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label for="pause1-debut" style="min-width: 120px;">Pause :</label>
+                        <input type="text" id="pause1-debut" name="pause1-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
+                        <span>à</span>
+                        <input type="text" id="pause1-fin" name="pause1-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label for="pause-debut" style="min-width: 120px;">Pause midi :</label>
+                        <input type="text" id="pause-debut" name="pause-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
+                        <span>à</span>
+                        <input type="text" id="pause-fin" name="pause-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label for="pause2-debut" style="min-width: 120px;">Pause :</label>
+                        <input type="text" id="pause2-debut" name="pause2-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
+                        <span>à</span>
+                        <input type="text" id="pause2-fin" name="pause2-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label for="depart" style="min-width: 120px;">Départ :</label>
+                        <input type="text" id="depart" name="depart" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width: 80px;">
                     </div>
                     <button type="submit">Enregistrer la journée</button>
                 </div>
@@ -168,8 +242,8 @@
             <tr>
                 <th>Date</th>
                 <th>Arrivée</th>
-                <th>Début pause</th>
-                <th>Fin pause</th>
+                <th>Midi</th>
+                <th>Pause</th>
                 <th>Départ</th>
                 <th>Heures travaillées</th>
                 <th>Écart</th>
