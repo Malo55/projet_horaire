@@ -568,15 +568,31 @@ function formatHeureInput(input) {
     });
     input.addEventListener('blur', function() {
         let v = input.value.replace(/[^0-9]/g, '');
+        if (v.length === 1) v = '0' + v; // 6 => 06
         if (v.length === 3) v = '0' + v; // 900 => 09:00
         if (v.length === 4) {
             let h = v.slice(0,2);
             let m = v.slice(2,4);
-            input.value = h + ':' + m;
+            let hNum = parseInt(h, 10);
+            let mNum = parseInt(m, 10);
+            if (isNaN(hNum) || isNaN(mNum) || hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
+                input.value = '';
+            } else {
+                input.value = h.padStart(2, '0') + ':' + m.padStart(2, '0');
+            }
+        } else if (v.length === 2) {
+            let hNum = parseInt(v, 10);
+            if (isNaN(hNum) || hNum < 0 || hNum > 23) {
+                input.value = '';
+            } else {
+                input.value = v.padStart(2, '0') + ':00';
+            }
+        } else {
+            input.value = '';
         }
     });
 }
-['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','arrivee','depart','pause-debut','pause-fin','pause2-debut','pause2-fin'].forEach(id => {
+['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin','arrivee','depart','pause-debut','pause-fin','pause2-debut','pause2-fin'].forEach(id => {
     const el = document.getElementById(id);
     if (el) formatHeureInput(el);
 });
@@ -955,10 +971,21 @@ function updateCalculateur() {
     let arriveeMins = null, departMins = null, departMinsAvantClamp = null;
     // Calcul du delta d'heure à chaque modification
     let delta = null;
+    // Gestion visuelle des plages
+    function checkPlage(input, mins, min, max) {
+        if (mins === null || isNaN(mins)) {
+            input.style.background = '';
+            return;
+        }
+        if (mins < min || mins > max) {
+            input.style.background = '#ffcccc';
+        } else {
+            input.style.background = '';
+        }
+    }
     if (lastInput === 'calc-arrivee' && calcArrivee.value && /^\d{2}:\d{2}$/.test(calcArrivee.value)) {
         arriveeMins = toMinutes(calcArrivee.value);
-        arriveeMins = clampArriveeMins(arriveeMins);
-        calcArrivee.value = toHHMM(arriveeMins);
+        checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
         departMins = arriveeMins + travailMins + pauseMins;
         if (pause1Mins > pauseOfferteVal) {
             departMins += (pause1Mins - pauseOfferteVal);
@@ -967,15 +994,12 @@ function updateCalculateur() {
             departMins += (pauseSup - pauseOfferteVal);
         }
         departMinsAvantClamp = departMins;
-        departMins = clampDepartMins(departMins);
-        delta = ((departMinsAvantClamp - departMins) / 60).toFixed(2);
+        // On ne corrige plus la valeur, on affiche juste le calcul
         calcDepart.value = toHHMM(departMins);
+        checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
     } else if (lastInput === 'calc-depart' && calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
         departMins = toMinutes(calcDepart.value);
-        departMinsAvantClamp = departMins;
-        departMins = clampDepartMins(departMins);
-        delta = ((departMinsAvantClamp - departMins) / 60).toFixed(2);
-        calcDepart.value = toHHMM(departMins);
+        checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
         if (pause1Mins > pauseOfferteVal) {
             departMins -= (pause1Mins - pauseOfferteVal);
         }
@@ -983,8 +1007,8 @@ function updateCalculateur() {
             departMins -= (pauseSup - pauseOfferteVal);
         }
         arriveeMins = departMins - travailMins - pauseMins;
-        arriveeMins = clampArriveeMins(arriveeMins);
         calcArrivee.value = toHHMM(arriveeMins);
+        checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
     } else if (
         lastInput === 'calc-pause1-debut' || lastInput === 'calc-pause1-fin' ||
         lastInput === 'calc-pause2-debut' || lastInput === 'calc-pause2-fin' ||
@@ -994,8 +1018,7 @@ function updateCalculateur() {
         // Si l'arrivée est remplie, on recalcule le départ
         if (calcArrivee.value && /^\d{2}:\d{2}$/.test(calcArrivee.value)) {
             arriveeMins = toMinutes(calcArrivee.value);
-            arriveeMins = clampArriveeMins(arriveeMins);
-            calcArrivee.value = toHHMM(arriveeMins);
+            checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
             departMins = arriveeMins + travailMins + pauseMins;
             if (pause1Mins > pauseOfferteVal) {
                 departMins += (pause1Mins - pauseOfferteVal);
@@ -1004,15 +1027,11 @@ function updateCalculateur() {
                 departMins += (pauseSup - pauseOfferteVal);
             }
             departMinsAvantClamp = departMins;
-            departMins = clampDepartMins(departMins);
-            delta = ((departMinsAvantClamp - departMins) / 60).toFixed(2);
             calcDepart.value = toHHMM(departMins);
+            checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
         } else if (calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
             departMins = toMinutes(calcDepart.value);
-            departMinsAvantClamp = departMins;
-            departMins = clampDepartMins(departMins);
-            delta = ((departMinsAvantClamp - departMins) / 60).toFixed(2);
-            calcDepart.value = toHHMM(departMins);
+            checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
             if (pause1Mins > pauseOfferteVal) {
                 departMins -= (pause1Mins - pauseOfferteVal);
             }
@@ -1020,16 +1039,9 @@ function updateCalculateur() {
                 departMins -= (pauseSup - pauseOfferteVal);
             }
             arriveeMins = departMins - travailMins - pauseMins;
-            arriveeMins = clampArriveeMins(arriveeMins);
             calcArrivee.value = toHHMM(arriveeMins);
+            checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
         }
-    }
-    if (departIndication && delta !== null && delta != 0) {
-        departIndication.textContent = '';
-        departIndication.style.color = '';
-    } else if (departIndication) {
-        departIndication.textContent = '';
-        departIndication.style.color = '';
     }
     let infoPause1 = pause1Mins > 0 ? `pause matin de ${pause1Mins} min` : 'pas de pause matin';
     let infoPauseSup = pauseSup > 0 ? `pause supp. de ${pauseSup} min` : 'pas de pause supp.';
@@ -1126,18 +1138,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Appliquer les changements en temps réel pour les heures par jour
+        // Synchronisation live des deux champs dans les paramètres
         const paramHeuresJour = document.getElementById('param-heures-jour');
-        if (paramHeuresJour) {
+        const paramHeuresJourHHMM = document.getElementById('param-heures-jour-hhmm');
+        if (paramHeuresJour && paramHeuresJourHHMM) {
+            // Initialisation
+            paramHeuresJour.value = heuresJour.toFixed(2);
+            paramHeuresJourHHMM.value = fractionToHHMM(heuresJour);
+            // Décimal -> HH:MM
             paramHeuresJour.addEventListener('input', function() {
-                const nouvelleValeur = parseFloat(this.value) || 7.5;
-                heuresJour = nouvelleValeur;
+                const val = parseFloat(this.value) || 0;
+                paramHeuresJourHHMM.value = fractionToHHMM(val);
+                heuresJour = val;
                 localStorage.setItem('heuresJour', heuresJour);
-                
-                // Mettre à jour l'interface
                 if (heuresJourInput) heuresJourInput.value = heuresJour.toFixed(2);
                 if (heuresJourHHMM) heuresJourHHMM.value = fractionToHHMM(heuresJour);
-                
                 // Recalculer tous les écarts
                 jours = jours.map(jour => {
                     return {
@@ -1146,8 +1161,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                 });
                 localStorage.setItem('jours', JSON.stringify(jours));
-                
-                // Mettre à jour l'affichage
+                afficherJours();
+            });
+            // HH:MM -> Décimal
+            paramHeuresJourHHMM.addEventListener('input', function() {
+                const val = hhmmToFraction(this.value);
+                paramHeuresJour.value = val.toFixed(2);
+                heuresJour = val;
+                localStorage.setItem('heuresJour', heuresJour);
+                if (heuresJourInput) heuresJourInput.value = heuresJour.toFixed(2);
+                if (heuresJourHHMM) heuresJourHHMM.value = fractionToHHMM(heuresJour);
+                // Recalculer tous les écarts
+                jours = jours.map(jour => {
+                    return {
+                        ...jour,
+                        ecart: calculerEcart(parseFloat(jour.heuresTravaillees), heuresJour)
+                    };
+                });
+                localStorage.setItem('jours', JSON.stringify(jours));
                 afficherJours();
             });
         }
@@ -1394,3 +1425,106 @@ function calculerHeuresSupCalculette() {
 });
 // Calcul initial au chargement
 calculerHeuresSupCalculette(); 
+
+// --- Sauvegarde/restauration automatique des champs de la calculette ---
+const calcFields = [
+    'calc-arrivee', 'calc-depart',
+    'calc-pause-debut', 'calc-pause-fin',
+    'calc-pause1-debut', 'calc-pause1-fin',
+    'calc-pause2-debut', 'calc-pause2-fin'
+];
+calcFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        // Restauration
+        const val = localStorage.getItem('calculette_' + id);
+        if (val) el.value = val;
+        // Sauvegarde à chaque modification et à la perte de focus (pour avoir la valeur formatée)
+        el.addEventListener('input', function() {
+            localStorage.setItem('calculette_' + id, el.value);
+        });
+        el.addEventListener('blur', function() {
+            localStorage.setItem('calculette_' + id, el.value);
+        });
+    }
+});
+// --- Sauvegarde/restauration automatique des champs du module zero ---
+const zeroFields = [
+    'zero-arrivee', 'zero-depart',
+    'zero-pause-debut', 'zero-pause-fin',
+    'zero-pause1-debut', 'zero-pause1-fin'
+];
+zeroFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        // Restauration
+        const val = localStorage.getItem('zero_' + id);
+        if (val) el.value = val;
+        // Sauvegarde à chaque modification et à la perte de focus (pour avoir la valeur formatée)
+        el.addEventListener('input', function() {
+            localStorage.setItem('zero_' + id, el.value);
+        });
+        el.addEventListener('blur', function() {
+            localStorage.setItem('zero_' + id, el.value);
+        });
+    }
+});
+
+// Patch updateCalculateur pour sauvegarder la valeur calculée de calc-depart et calc-arrivee
+const oldUpdateCalculateur = updateCalculateur;
+updateCalculateur = function() {
+    oldUpdateCalculateur();
+    // Sauvegarde automatique des valeurs calculées
+    if (calcArrivee) {
+        localStorage.setItem('calculette_calc-arrivee', calcArrivee.value);
+    }
+    if (calcDepart) {
+        localStorage.setItem('calculette_calc-depart', calcDepart.value);
+    }
+};
+
+['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        formatHeureInput(el);
+        el.addEventListener('blur', function() {
+            lastInput = el.id;
+            updateCalculateur();
+        });
+    }
+});
+
+function checkPlageZero(input, mins, min, max) {
+    if (mins === null || isNaN(mins)) {
+        input.style.background = '';
+        return;
+    }
+    if (mins < min || mins > max) {
+        input.style.background = '#ffcccc';
+    } else {
+        input.style.background = '';
+    }
+}
+function updateZeroPlages() {
+    const zeroArrivee = document.getElementById('zero-arrivee');
+    const zeroDepart = document.getElementById('zero-depart');
+    if (!zeroArrivee || !zeroDepart) return;
+    const toMinutes = (h) => {
+        if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+        const [hh, mm] = h.split(':').map(Number);
+        return hh * 60 + mm;
+    };
+    const arriveeMins = toMinutes(zeroArrivee.value);
+    const departMins = toMinutes(zeroDepart.value);
+    checkPlageZero(zeroArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
+    checkPlageZero(zeroDepart, departMins, plageDepartMin, plageDepartMax);
+}
+['zero-arrivee','zero-depart'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('input', updateZeroPlages);
+        el.addEventListener('blur', updateZeroPlages);
+    }
+});
+// Appel initial
+updateZeroPlages();

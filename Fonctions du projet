@@ -1,9 +1,83 @@
+Mode normal :
+Fonctions :
+
+1- Calendrier
+- année reglable par fleches
+- mois reglable par fleches
+- bouton vacances
+- numero de semaine
+- 
+x- Modal d'entrée journalier
+- date auto
+- heures du jour (arrivée, pause, midi, pause, départ)
+- possibilité d'ajouter des lignes de pause (mise en forme std)
+
+x- Modal de vacances :
+- affichage annuel
+- année réglable par fleches
+- bouton pour ferié
+- bouton pour jour rattrapé
+- bouton pour poser un cp
+- bouton pour poser un rtt
+
+x- Modal de paramètres
+- plage horaire (arrivée, midi, départ)
+- plage horaire horaire de présence obligatoire
+- case a cocher pour jours de travail
+- heure a faire par jour
+- report heure supplémentaire
+- temps de pause offert
+
+x- Module de calcul d'heure de départ et d'arrivée
+- champs arrivée, pause (début/fin et durée en min), pause midi (début/fin), départ
+- si je rentre 6 mise en forme auto à 06:00
+- calcul du départ si j'entre arrivée
+- calcul de l'arrivée si je rentre le départ
+- si hors plage horaire paramètre, affichage indicateur
+
+x- Module de simulation journalière
+- champs arrivée, pause (début/fin et durée en min), pause midi (début/fin), départ
+- la durée de pause peut etre entrée en debut/fin ou en temps, si début/fin, calcul auto du temps, si en temps, suppression du début fin
+- si je rentre 6 mise en forme auto à 06:00
+- affichage heure sup en fonction des saisies
+
+x- Module de jour saisi 
+- affichage date, arrivée debut/fin midi, depart, cumul pause, heures travaillées HH:MM et x,xx, écart HH:MM et x,xx, action supprimer
+- tri par date
+- ecart en rouge si negatif et un vert si positif, et on noir si = 0
+
+x- graphe
+- courbe d'heure sup, semaine, mois, année
+					evolution des heures sup faites sur l'année
+- barre heures sup moyenne par jour de la semaine
+					quels jours en moyenne fait combien d'heure sup
+- courbe temps travaillé par jour, semaine, mois
+					evolution du temps travaillé sur l'année
+
+x- Sauvegarde des données
+- fichier excel ?
+- local ?
+- autre ?
+
+
+Calculs :
+1- Calendrier
+
+
+2- Modal de paramètres
+
+x- Module de calcul d'heure de départ et d'arrivée
+
+x- Module de simulation journalière
+
+
 Mode RHT :
 Fonctions :
 - possibilité de rentrer les heures de rht
 - possibilité de rentrer des demi journées de rht
 - possibilité de créer une récurence dans le posage de rht (sur des journées entières, ou des plages horaires, 1/2 journée?)
 - dashboard de rht avec (nombres d'heures passées en rht, nombre d'heures ecretée, nombre de jour prévus restants, date de début et de fin, graphes de l'évolution du nombres d'heures passée en rht par semaine, graphe d'heure ecreté)
+
 
 Calculs :
 - si heure a faire > heures faites, bascule des heures manquantes en heure rht

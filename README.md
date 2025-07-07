@@ -1,8 +1,7 @@
 À MODIFIER :
-Mise en forme auto dans calcul entre sortie pour pause
-Dans paramètres, l'heure a faire par jour doit etre en HH:MM et en décimal
+
 Problème de calcul du nombre d'heure supplémentaire dans les jours saisis ou dans le module zéro
-Impossibilité de rentrer des valeurs incohérentes pour les heures ex 16:89
+
 Persistance des entrées dans les modules de calcul en local
 La plage ne doit pas limiter la saisie mais afficher une icone alarme
 

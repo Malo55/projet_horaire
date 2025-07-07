@@ -264,7 +264,10 @@
                     
                     <div>
                         <label for="param-heures-jour" style="display: block; margin-bottom: 6px; font-weight: bold;">Heures à faire par jour :</label>
-                        <input type="number" id="param-heures-jour" min="0" max="24" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <input type="number" id="param-heures-jour" min="0" max="24" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <input type="text" id="param-heures-jour-hhmm" placeholder="HH:MM" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
                     </div>
                     
                     <div>
