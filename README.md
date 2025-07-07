@@ -1,6 +1,7 @@
 À MODIFIER :
 
 Problème de calcul du nombre d'heure supplémentaire dans les jours saisis ou dans le module zéro
+Module de calcule de pause, quand on supprime une ligne la mise en forme de la numerotation change
 
 À AJOUTER :
 Un switch pour afficher les heures en HH:MM:SS ou en HH:MM que pour les champs du calendrier
