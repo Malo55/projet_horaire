@@ -205,19 +205,25 @@
                     <input type="date" id="date" name="date" required>
                     <label for="arrivee">Heure d'arrivée :</label>
                     <input type="text" id="arrivee" name="arrivee" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    <label for="pause-debut">Début pause déjeuner :</label>
-                    <input type="text" id="pause-debut" name="pause-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    <label for="pause-fin">Fin pause déjeuner :</label>
-                    <input type="text" id="pause-fin" name="pause-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
+                    <div id="pauses-avant-container">
+                        <label>Pauses avant midi</label>
+                        <div id="pauses-avant-list"></div>
+                    </div>
+                    <!-- Pause midi sous le texte -->
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <label for="pause-debut" style="margin-bottom:0;">Pause midi</label>
+                        <div id="pause-midi-row" style="display: flex; align-items: center; gap: 8px;">
+                            <input type="text" id="pause-debut" name="pause-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width:60px;">
+                            <span>à</span>
+                            <input type="text" id="pause-fin" name="pause-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" style="width:60px;">
+                        </div>
+                    </div>
+                    <div id="pauses-apres-container">
+                        <label>Pauses après midi</label>
+                        <div id="pauses-apres-list"></div>
+                    </div>
                     <label for="depart">Heure de départ :</label>
                     <input type="text" id="depart" name="depart" placeholder="HH:MM" required pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    <label><input type="checkbox" id="pause-checkbox" name="pause"> Pause supplémentaire</label>
-                    <div id="pause-fields" style="display:none; flex-direction: column; gap: 10px;">
-                        <label for="pause2-debut">Début pause supplémentaire :</label>
-                        <input type="text" id="pause2-debut" name="pause2-debut" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                        <label for="pause2-fin">Fin pause supplémentaire :</label>
-                        <input type="text" id="pause2-fin" name="pause2-fin" placeholder="HH:MM" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$">
-                    </div>
                     <button type="submit">Enregistrer la journée</button>
                 </div>
             </form>
