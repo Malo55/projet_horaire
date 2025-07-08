@@ -530,62 +530,20 @@ if (heuresJourHHMM) {
 
 // --- Export Excel ---
 document.getElementById('export-excel').addEventListener('click', function() {
-    // Préparation des données détaillées pour Excel
-    const maxPausesAvant = Math.max(0, ...jours.map(j => Array.isArray(j.pausesAvant) ? j.pausesAvant.length : 0));
-    const maxPausesApres = Math.max(0, ...jours.map(j => Array.isArray(j.pausesApres) ? j.pausesApres.length : 0));
-    const headers = [
-        'Date', 'Arrivée', 'Départ',
-        'Pause midi début', 'Pause midi fin',
-        ...Array.from({length: maxPausesAvant}, (_, i) => `Pause avant midi ${i+1} début`),
-        ...Array.from({length: maxPausesAvant}, (_, i) => `Pause avant midi ${i+1} fin`),
-        ...Array.from({length: maxPausesApres}, (_, i) => `Pause après midi ${i+1} début`),
-        ...Array.from({length: maxPausesApres}, (_, i) => `Pause après midi ${i+1} fin`),
-        'Heures travaillées', 'Écart'
-    ];
-    const wsData = [headers];
-    jours.forEach(jour => {
-        const row = [
-            jour.date,
-            jour.arrivee,
-            jour.depart,
-            jour.pauseDejDebut,
-            jour.pauseDejFin
-        ];
-        // Pauses avant midi
-        for (let i = 0; i < maxPausesAvant; i++) {
-            row.push(jour.pausesAvant && jour.pausesAvant[i] ? jour.pausesAvant[i].debut : '');
-        }
-        for (let i = 0; i < maxPausesAvant; i++) {
-            row.push(jour.pausesAvant && jour.pausesAvant[i] ? jour.pausesAvant[i].fin : '');
-        }
-        // Pauses après midi
-        for (let i = 0; i < maxPausesApres; i++) {
-            row.push(jour.pausesApres && jour.pausesApres[i] ? jour.pausesApres[i].debut : '');
-        }
-        for (let i = 0; i < maxPausesApres; i++) {
-            row.push(jour.pausesApres && jour.pausesApres[i] ? jour.pausesApres[i].fin : '');
-        }
-        row.push(jour.heuresTravaillees);
-        row.push(jour.ecart);
-        wsData.push(row);
+    // Récupère le mois et l'année sélectionnés
+    const moisFiltre = typeof moisJoursSelectionne !== 'undefined' ? moisJoursSelectionne : (currentMonth || new Date().getMonth());
+    const anneeFiltre = typeof currentYear !== 'undefined' ? currentYear : new Date().getFullYear();
+    // Filtre les jours du mois/année sélectionnés
+    const joursExport = jours.filter(jour => {
+        if (!jour.date) return false;
+        const [annee, mois] = jour.date.split('-');
+        return parseInt(mois, 10) - 1 === moisFiltre && parseInt(annee, 10) === anneeFiltre;
     });
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Horaires');
-    // Génère le fichier dans le dossier du projet (pour Node.js ou Electron)
-    if (typeof require !== 'undefined' && typeof window === 'undefined') {
-        // Node.js : écrire le fichier dans le dossier du projet
-        const fs = require('fs');
-        const path = require('path');
-        const filePath = path.join(__dirname, 'export_horaires.xlsx');
-        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
-        fs.writeFileSync(filePath, wbout);
-        alert('Fichier export_horaires.xlsx créé dans le dossier du projet.');
-    } else {
-        // Navigateur : téléchargement classique
-        XLSX.writeFile(wb, 'export_horaires.xlsx');
-    }
+    exporterJoursExcel(joursExport, `export_horaires_${anneeFiltre}-${String(moisFiltre+1).padStart(2,'0')}.xlsx`);
 });
+// --- Export Excel Année ---
+// (Bloc supprimé ici)
+// ... existing code ...
 
 // --- Import Excel ---
 const importInput = document.getElementById('import-excel');
@@ -599,55 +557,52 @@ importInput.addEventListener('change', function(e) {
     reader.onload = function(evt) {
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        if (rows.length < 2) return;
-        const headers = rows[0];
-        const idxDate = headers.indexOf('Date');
-        const idxArrivee = headers.indexOf('Arrivée');
-        const idxDepart = headers.indexOf('Départ');
-        const idxPauseMidiDebut = headers.indexOf('Pause midi début');
-        const idxPauseMidiFin = headers.indexOf('Pause midi fin');
-        // Pauses dynamiques
-        const idxsPauseAvantDebut = [];
-        const idxsPauseAvantFin = [];
-        const idxsPauseApresDebut = [];
-        const idxsPauseApresFin = [];
-        headers.forEach((h, i) => {
-            if (/^Pause avant midi \d+ début$/.test(h)) idxsPauseAvantDebut.push(i);
-            if (/^Pause avant midi \d+ fin$/.test(h)) idxsPauseAvantFin.push(i);
-            if (/^Pause après midi \d+ début$/.test(h)) idxsPauseApresDebut.push(i);
-            if (/^Pause après midi \d+ fin$/.test(h)) idxsPauseApresFin.push(i);
-        });
-        const idxHeuresTrav = headers.indexOf('Heures travaillées');
-        const idxEcart = headers.indexOf('Écart');
-        // On écrase les jours existants
-        jours = rows.slice(1).filter(row => row[idxDate]).map(row => {
-            // Pauses dynamiques avant midi
-            const pausesAvant = [];
-            for (let i = 0; i < idxsPauseAvantDebut.length; i++) {
-                const debut = row[idxsPauseAvantDebut[i]] || '';
-                const fin = row[idxsPauseAvantFin[i]] || '';
-                if (debut || fin) pausesAvant.push({debut, fin});
-            }
-            // Pauses dynamiques après midi
-            const pausesApres = [];
-            for (let i = 0; i < idxsPauseApresDebut.length; i++) {
-                const debut = row[idxsPauseApresDebut[i]] || '';
-                const fin = row[idxsPauseApresFin[i]] || '';
-                if (debut || fin) pausesApres.push({debut, fin});
-            }
-            return {
-                date: row[idxDate] || '',
-                arrivee: row[idxArrivee] || '',
-                depart: row[idxDepart] || '',
-                pauseDejDebut: row[idxPauseMidiDebut] || '',
-                pauseDejFin: row[idxPauseMidiFin] || '',
-                pausesAvant,
-                pausesApres,
-                heuresTravaillees: row[idxHeuresTrav] || '',
-                ecart: row[idxEcart] || ''
-            };
+        workbook.SheetNames.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            if (rows.length < 2) return;
+            const headers = rows[0];
+            const idxDate = headers.indexOf('Date');
+            const idxArrivee = headers.indexOf('Arrivée');
+            const idxPauseMidiDebut = headers.indexOf('Pause midi début');
+            const idxPauseMidiFin = headers.indexOf('Pause midi fin');
+            const idxPauseTotal = headers.indexOf('Pause (total hors midi)');
+            const idxDepart = headers.indexOf('Départ');
+            const idxHeuresTrav = headers.indexOf('Heures travaillées');
+            const idxEcart = headers.indexOf('Écart');
+            const idxPausesAvant = headers.indexOf('pausesAvant');
+            const idxPausesApres = headers.indexOf('pausesApres');
+            // On écrase les jours existants
+            const importedJours = rows.slice(1).filter(row => row[idxDate]).map(row => {
+                let pausesAvant = [];
+                let pausesApres = [];
+                if (idxPausesAvant !== -1 && row[idxPausesAvant]) {
+                    try { pausesAvant = JSON.parse(row[idxPausesAvant]); } catch(e) { pausesAvant = []; }
+                }
+                if (idxPausesApres !== -1 && row[idxPausesApres]) {
+                    try { pausesApres = JSON.parse(row[idxPausesApres]); } catch(e) { pausesApres = []; }
+                }
+                return {
+                    date: row[idxDate] || '',
+                    arrivee: row[idxArrivee] || '',
+                    pauseDejDebut: row[idxPauseMidiDebut] || '',
+                    pauseDejFin: row[idxPauseMidiFin] || '',
+                    depart: row[idxDepart] || '',
+                    pausesAvant,
+                    pausesApres,
+                    heuresTravaillees: row[idxHeuresTrav] || '',
+                    ecart: row[idxEcart] || ''
+                };
+            });
+            // Fusionne avec les jours existants (par date)
+            importedJours.forEach(jour => {
+                const index = jours.findIndex(j => j.date === jour.date);
+                if (index !== -1) {
+                    jours[index] = jour;
+                } else {
+                    jours.push(jour);
+                }
+            });
         });
         localStorage.setItem('jours', JSON.stringify(jours));
         afficherJours();
@@ -757,8 +712,8 @@ confirmNon.addEventListener('click', function() {
     confirmModalBg.style.display = 'none';
 });
 confirmOui.addEventListener('click', function() {
-    // Supprime tous les jours du mois affiché
-    const moisStr = String(currentMonth + 1).padStart(2, '0');
+    // Supprime tous les jours du mois affiché (filtré)
+    const moisStr = String((typeof moisJoursSelectionne !== 'undefined' ? moisJoursSelectionne : currentMonth) + 1).padStart(2, '0');
     const anneeStr = String(currentYear);
     jours = jours.filter(jour => {
         const [y, m] = jour.date.split('-');
@@ -1468,3 +1423,117 @@ function addPause3Ligne(nom) {
     });
 }
 // ... existing code ...
+
+// --- Export Excel Année ---
+document.getElementById('export-annee').addEventListener('click', function() {
+    const anneeFiltre = typeof currentYear !== 'undefined' ? currentYear : new Date().getFullYear();
+    const joursExport = jours.filter(jour => {
+        if (!jour.date) return false;
+        const [annee] = jour.date.split('-');
+        return parseInt(annee, 10) === anneeFiltre;
+    });
+    exporterJoursExcelAnnee(joursExport, anneeFiltre);
+});
+
+// --- Fonction utilitaire d'export Excel annuel (une feuille par mois) ---
+function exporterJoursExcelAnnee(joursAExporter, anneeFiltre) {
+    const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    const wb = XLSX.utils.book_new();
+    for (let mois = 0; mois < 12; mois++) {
+        // Filtrer les jours du mois
+        const joursMois = joursAExporter.filter(jour => {
+            if (!jour.date) return false;
+            const [annee, m] = jour.date.split('-');
+            return parseInt(annee, 10) === anneeFiltre && parseInt(m, 10) === mois+1;
+        });
+        if (joursMois.length === 0) continue; // Ne pas créer de feuille vide
+        const maxPausesAvant = Math.max(0, ...joursMois.map(j => Array.isArray(j.pausesAvant) ? j.pausesAvant.length : 0));
+        const maxPausesApres = Math.max(0, ...joursMois.map(j => Array.isArray(j.pausesApres) ? j.pausesApres.length : 0));
+        const headers = [
+            'Date', 'Arrivée', 'Départ',
+            'Pause midi début', 'Pause midi fin',
+            ...Array.from({length: maxPausesAvant}, (_, i) => `Pause avant midi ${i+1} début`),
+            ...Array.from({length: maxPausesAvant}, (_, i) => `Pause avant midi ${i+1} fin`),
+            ...Array.from({length: maxPausesApres}, (_, i) => `Pause après midi ${i+1} début`),
+            ...Array.from({length: maxPausesApres}, (_, i) => `Pause après midi ${i+1} fin`),
+            'Heures travaillées', 'Écart'
+        ];
+        const wsData = [headers];
+        joursMois.forEach(jour => {
+            const row = [
+                jour.date,
+                jour.arrivee,
+                jour.depart,
+                jour.pauseDejDebut,
+                jour.pauseDejFin
+            ];
+            for (let i = 0; i < maxPausesAvant; i++) {
+                row.push(jour.pausesAvant && jour.pausesAvant[i] ? jour.pausesAvant[i].debut : '');
+            }
+            for (let i = 0; i < maxPausesAvant; i++) {
+                row.push(jour.pausesAvant && jour.pausesAvant[i] ? jour.pausesAvant[i].fin : '');
+            }
+            for (let i = 0; i < maxPausesApres; i++) {
+                row.push(jour.pausesApres && jour.pausesApres[i] ? jour.pausesApres[i].debut : '');
+            }
+            for (let i = 0; i < maxPausesApres; i++) {
+                row.push(jour.pausesApres && jour.pausesApres[i] ? jour.pausesApres[i].fin : '');
+            }
+            row.push(jour.heuresTravaillees);
+            row.push(jour.ecart);
+            wsData.push(row);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, `${moisNoms[mois]} ${anneeFiltre}`);
+    }
+    const nomFichier = `export_horaires_${anneeFiltre}.xlsx`;
+    if (typeof require !== 'undefined' && typeof window === 'undefined') {
+        const fs = require('fs');
+        const path = require('path');
+        const filePath = path.join(__dirname, nomFichier);
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+        fs.writeFileSync(filePath, wbout);
+        alert(`${nomFichier} créé dans le dossier du projet.`);
+    } else {
+        XLSX.writeFile(wb, nomFichier);
+    }
+}
+// Ancienne fonction exporterJoursExcel pour l'année supprimée car remplacée par exporterJoursExcelAnnee
+
+const btnSupprimerAnnee = document.getElementById('supprimer-annee');
+if (btnSupprimerAnnee) {
+    btnSupprimerAnnee.addEventListener('click', function() {
+        confirmModalBg.style.display = 'flex';
+        confirmModalBg.setAttribute('data-mode', 'annee');
+    });
+}
+// On adapte le listener de confirmOui pour gérer la suppression annuelle ou mensuelle
+confirmOui.addEventListener('click', function() {
+    if (confirmModalBg.getAttribute('data-mode') === 'annee') {
+        // Suppression de l'année affichée
+        const anneeStr = String(currentYear);
+        jours = jours.filter(jour => {
+            const [y] = jour.date.split('-');
+            return y !== anneeStr;
+        });
+        localStorage.setItem('jours', JSON.stringify(jours));
+        afficherJours();
+        confirmModalBg.style.display = 'none';
+        confirmModalBg.removeAttribute('data-mode');
+    } else {
+        // Suppression du mois (déjà corrigé)
+        const moisStr = String((typeof moisJoursSelectionne !== 'undefined' ? moisJoursSelectionne : currentMonth) + 1).padStart(2, '0');
+        const anneeStr = String(currentYear);
+        jours = jours.filter(jour => {
+            const [y, m] = jour.date.split('-');
+            return !(y === anneeStr && m === moisStr);
+        });
+        localStorage.setItem('jours', JSON.stringify(jours));
+        afficherJours();
+        confirmModalBg.style.display = 'none';
+    }
+});
+confirmNon.addEventListener('click', function() {
+    confirmModalBg.style.display = 'none';
+    confirmModalBg.removeAttribute('data-mode');
+});
