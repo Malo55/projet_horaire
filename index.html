@@ -50,6 +50,29 @@
         padding: 8px 6px;
         text-align: center;
       }
+      #mois-jours-bar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+      }
+      .mois-jour-btn {
+        padding: 6px 14px;
+        border-radius: 16px;
+        border: none;
+        background: #e3eafc;
+        color: #1976d2;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 1em;
+        transition: background 0.2s, color 0.2s;
+      }
+      .mois-jour-btn.selected {
+        background: #1976d2;
+        color: #fff;
+        font-weight: bold;
+        box-shadow: 0 2px 8px #1976d233;
+      }
     </style>
 </head>
 <body>
@@ -245,6 +268,23 @@
         </div>
     </div>
     <h2>Jours saisis</h2>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 0; margin-bottom: 8px; width: 100%;">
+      <span id="annee-jours-saisis" style="font-size: 1.2em; font-weight: bold; margin-bottom: 2px; text-align: center; width: 100%; display: block;"></span>
+      <div id="mois-jours-bar">
+        <button type="button" data-mois="0">Jan</button>
+        <button type="button" data-mois="1">Fév</button>
+        <button type="button" data-mois="2">Mars</button>
+        <button type="button" data-mois="3">Avr</button>
+        <button type="button" data-mois="4">Mai</button>
+        <button type="button" data-mois="5">Juin</button>
+        <button type="button" data-mois="6">Juil</button>
+        <button type="button" data-mois="7">Août</button>
+        <button type="button" data-mois="8">Sept</button>
+        <button type="button" data-mois="9">Oct</button>
+        <button type="button" data-mois="10">Nov</button>
+        <button type="button" data-mois="11">Déc</button>
+      </div>
+    </div>
     <div id="table-jours-container">
       <table id="table-jours">
         <thead>

@@ -6,6 +6,9 @@ const tableBody = document.querySelector('#table-jours tbody');
 const heuresJourInput = document.getElementById('heures-jour');
 const heuresJourHHMM = document.getElementById('heures-jour-hhmm');
 const pauseOfferteInput = document.getElementById('pause-offerte-min');
+// Ajout : sélecteur mois/année jours saisis
+const selectMoisJoursSaisis = document.getElementById('mois-jours-saisis');
+const anneeJoursSaisis = document.getElementById('annee-jours-saisis');
 
 // Récupération ou initialisation des données
 let jours = JSON.parse(localStorage.getItem('jours')) || [];
@@ -527,17 +530,61 @@ if (heuresJourHHMM) {
 
 // --- Export Excel ---
 document.getElementById('export-excel').addEventListener('click', function() {
-    // Préparation des données pour Excel
-    const wsData = [
-        ['Date', 'Arrivée', 'Début pause', 'Fin pause', 'Départ', 'Heures travaillées', 'Écart'],
-        ...jours.map(jour => [
-            formaterDate(jour.date), jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.heuresTravaillees, jour.ecart
-        ])
+    // Préparation des données détaillées pour Excel
+    const maxPausesAvant = Math.max(0, ...jours.map(j => Array.isArray(j.pausesAvant) ? j.pausesAvant.length : 0));
+    const maxPausesApres = Math.max(0, ...jours.map(j => Array.isArray(j.pausesApres) ? j.pausesApres.length : 0));
+    const headers = [
+        'Date', 'Arrivée', 'Départ',
+        'Pause midi début', 'Pause midi fin',
+        ...Array.from({length: maxPausesAvant}, (_, i) => `Pause avant midi ${i+1} début`),
+        ...Array.from({length: maxPausesAvant}, (_, i) => `Pause avant midi ${i+1} fin`),
+        ...Array.from({length: maxPausesApres}, (_, i) => `Pause après midi ${i+1} début`),
+        ...Array.from({length: maxPausesApres}, (_, i) => `Pause après midi ${i+1} fin`),
+        'Heures travaillées', 'Écart'
     ];
+    const wsData = [headers];
+    jours.forEach(jour => {
+        const row = [
+            jour.date,
+            jour.arrivee,
+            jour.depart,
+            jour.pauseDejDebut,
+            jour.pauseDejFin
+        ];
+        // Pauses avant midi
+        for (let i = 0; i < maxPausesAvant; i++) {
+            row.push(jour.pausesAvant && jour.pausesAvant[i] ? jour.pausesAvant[i].debut : '');
+        }
+        for (let i = 0; i < maxPausesAvant; i++) {
+            row.push(jour.pausesAvant && jour.pausesAvant[i] ? jour.pausesAvant[i].fin : '');
+        }
+        // Pauses après midi
+        for (let i = 0; i < maxPausesApres; i++) {
+            row.push(jour.pausesApres && jour.pausesApres[i] ? jour.pausesApres[i].debut : '');
+        }
+        for (let i = 0; i < maxPausesApres; i++) {
+            row.push(jour.pausesApres && jour.pausesApres[i] ? jour.pausesApres[i].fin : '');
+        }
+        row.push(jour.heuresTravaillees);
+        row.push(jour.ecart);
+        wsData.push(row);
+    });
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Horaires');
-    XLSX.writeFile(wb, 'horaires_travail.xlsx');
+    // Génère le fichier dans le dossier du projet (pour Node.js ou Electron)
+    if (typeof require !== 'undefined' && typeof window === 'undefined') {
+        // Node.js : écrire le fichier dans le dossier du projet
+        const fs = require('fs');
+        const path = require('path');
+        const filePath = path.join(__dirname, 'export_horaires.xlsx');
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+        fs.writeFileSync(filePath, wbout);
+        alert('Fichier export_horaires.xlsx créé dans le dossier du projet.');
+    } else {
+        // Navigateur : téléchargement classique
+        XLSX.writeFile(wb, 'export_horaires.xlsx');
+    }
 });
 
 // --- Import Excel ---
@@ -554,10 +601,53 @@ importInput.addEventListener('change', function(e) {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        // On saute la première ligne (en-têtes)
-        jours = rows.slice(1).filter(row => row.length >= 5).map(row => {
-            const [date, arrivee, pauseDejDebut, pauseDejFin, depart, heuresTravaillees, ecart] = row;
-            return { date, arrivee, pauseDejDebut, pauseDejFin, depart, heuresTravaillees, ecart };
+        if (rows.length < 2) return;
+        const headers = rows[0];
+        const idxDate = headers.indexOf('Date');
+        const idxArrivee = headers.indexOf('Arrivée');
+        const idxDepart = headers.indexOf('Départ');
+        const idxPauseMidiDebut = headers.indexOf('Pause midi début');
+        const idxPauseMidiFin = headers.indexOf('Pause midi fin');
+        // Pauses dynamiques
+        const idxsPauseAvantDebut = [];
+        const idxsPauseAvantFin = [];
+        const idxsPauseApresDebut = [];
+        const idxsPauseApresFin = [];
+        headers.forEach((h, i) => {
+            if (/^Pause avant midi \d+ début$/.test(h)) idxsPauseAvantDebut.push(i);
+            if (/^Pause avant midi \d+ fin$/.test(h)) idxsPauseAvantFin.push(i);
+            if (/^Pause après midi \d+ début$/.test(h)) idxsPauseApresDebut.push(i);
+            if (/^Pause après midi \d+ fin$/.test(h)) idxsPauseApresFin.push(i);
+        });
+        const idxHeuresTrav = headers.indexOf('Heures travaillées');
+        const idxEcart = headers.indexOf('Écart');
+        // On écrase les jours existants
+        jours = rows.slice(1).filter(row => row[idxDate]).map(row => {
+            // Pauses dynamiques avant midi
+            const pausesAvant = [];
+            for (let i = 0; i < idxsPauseAvantDebut.length; i++) {
+                const debut = row[idxsPauseAvantDebut[i]] || '';
+                const fin = row[idxsPauseAvantFin[i]] || '';
+                if (debut || fin) pausesAvant.push({debut, fin});
+            }
+            // Pauses dynamiques après midi
+            const pausesApres = [];
+            for (let i = 0; i < idxsPauseApresDebut.length; i++) {
+                const debut = row[idxsPauseApresDebut[i]] || '';
+                const fin = row[idxsPauseApresFin[i]] || '';
+                if (debut || fin) pausesApres.push({debut, fin});
+            }
+            return {
+                date: row[idxDate] || '',
+                arrivee: row[idxArrivee] || '',
+                depart: row[idxDepart] || '',
+                pauseDejDebut: row[idxPauseMidiDebut] || '',
+                pauseDejFin: row[idxPauseMidiFin] || '',
+                pausesAvant,
+                pausesApres,
+                heuresTravaillees: row[idxHeuresTrav] || '',
+                ecart: row[idxEcart] || ''
+            };
         });
         localStorage.setItem('jours', JSON.stringify(jours));
         afficherJours();
@@ -860,1074 +950,6 @@ renderCalendrier = function(month, year) {
         }
     }
 };
-
-// --- Calculateur d'heure d'arrivée/départ ---
-const calcPauseDebut = document.getElementById('calc-pause-debut');
-const calcPauseFin = document.getElementById('calc-pause-fin');
-const calcArrivee = document.getElementById('calc-arrivee');
-const calcDepart = document.getElementById('calc-depart');
-const calcInfo = document.getElementById('calc-info');
-const calcPauseSupFields = document.getElementById('calc-pause-sup-fields');
-const calcPause2Debut = document.getElementById('calc-pause2-debut');
-const calcPause2Fin = document.getElementById('calc-pause2-fin');
-const calcPause1Debut = document.getElementById('calc-pause1-debut');
-const calcPause1Fin = document.getElementById('calc-pause1-fin');
-const departIndication = document.getElementById('depart-indication');
-
-let lastInput = null;
-[calcArrivee, calcDepart].forEach(el => {
-    el.addEventListener('focus', function() { lastInput = el.id; });
-});
-
-function toMinutes(hhmm) {
-    if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
-    const [h, m] = hhmm.split(':').map(Number);
-    return h * 60 + m;
-}
-function toHHMM(mins) {
-    let h = Math.floor(mins / 60);
-    let m = Math.round(mins % 60);
-    if (m === 60) { h++; m = 0; }
-    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
-}
-function getPauseMinutesAvecMin() {
-    const debut = toMinutes(calcPauseDebut.value);
-    const fin = toMinutes(calcPauseFin.value);
-    let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
-    if (debut !== null && fin !== null && fin > debut) {
-        let val = fin - debut;
-        return val < pauseMidiMin ? pauseMidiMin : val;
-    }
-    return pauseMidiMin;
-}
-function getHeuresJourMinutes() {
-    // On lit la valeur actuelle du champ fraction d'heure
-    const input = document.getElementById('heures-jour');
-    let val = input ? parseFloat(input.value) : heuresJour;
-    if (isNaN(val)) val = 7.5;
-    return Math.round(val * 60);
-}
-function getPauseSupMinutes() {
-    if (!calcPause2Debut || !calcPause2Fin) return 0;
-    const debut = toMinutes(calcPause2Debut.value);
-    const fin = toMinutes(calcPause2Fin.value);
-    if (debut !== null && fin !== null && fin > debut) {
-        return fin - debut;
-    }
-    return 0;
-}
-function getPause1Minutes() {
-    const debut = toMinutes(calcPause1Debut.value);
-    const fin = toMinutes(calcPause1Fin.value);
-    if (debut !== null && fin !== null && fin > debut) {
-        return fin - debut;
-    }
-    return 0;
-}
-function getPauseOfferte() {
-    return parseInt(pauseOfferteInput ? pauseOfferteInput.value : pauseOfferte) || 0;
-}
-let plageArriveeMin = 480; // 08:00 en minutes
-let plageArriveeMax = 600; // 10:00 en minutes
-let plageMidiMin = 720; // 12:00 en minutes
-let plageMidiMax = 840; // 14:00 en minutes
-let plageDepartMin = 945; // 15:45 en minutes
-let plageDepartMax = 1080; // 18:00 en minutes
-const plageArriveeMinInput = document.getElementById('plage-arrivee-min');
-const plageArriveeMaxInput = document.getElementById('plage-arrivee-max');
-const plageMidiMinInput = document.getElementById('plage-midi-min');
-const plageMidiMaxInput = document.getElementById('plage-midi-max');
-const plageDepartMinInput = document.getElementById('plage-depart-min');
-const plageDepartMaxInput = document.getElementById('plage-depart-max');
-// Restauration depuis le localStorage
-if (localStorage.getItem('plageArriveeMin')) {
-    plageArriveeMin = parseInt(localStorage.getItem('plageArriveeMin'));
-    if (plageArriveeMinInput) plageArriveeMinInput.value = toHHMM(plageArriveeMin);
-}
-if (localStorage.getItem('plageArriveeMax')) {
-    plageArriveeMax = parseInt(localStorage.getItem('plageArriveeMax'));
-    if (plageArriveeMaxInput) plageArriveeMaxInput.value = toHHMM(plageArriveeMax);
-}
-if (localStorage.getItem('plageMidiMin')) {
-    plageMidiMin = parseInt(localStorage.getItem('plageMidiMin'));
-    if (plageMidiMinInput) plageMidiMinInput.value = toHHMM(plageMidiMin);
-}
-if (localStorage.getItem('plageMidiMax')) {
-    plageMidiMax = parseInt(localStorage.getItem('plageMidiMax'));
-    if (plageMidiMaxInput) plageMidiMaxInput.value = toHHMM(plageMidiMax);
-}
-if (localStorage.getItem('plageDepartMin')) {
-    plageDepartMin = parseInt(localStorage.getItem('plageDepartMin'));
-    if (plageDepartMinInput) plageDepartMinInput.value = toHHMM(plageDepartMin);
-}
-if (localStorage.getItem('plageDepartMax')) {
-    plageDepartMax = parseInt(localStorage.getItem('plageDepartMax'));
-    if (plageDepartMaxInput) plageDepartMaxInput.value = toHHMM(plageDepartMax);
-}
-if (plageArriveeMinInput && plageArriveeMaxInput) {
-    plageArriveeMin = toMinutes(plageArriveeMinInput.value);
-    plageArriveeMax = toMinutes(plageArriveeMaxInput.value);
-    plageArriveeMinInput.addEventListener('input', function() {
-        plageArriveeMin = toMinutes(this.value);
-        localStorage.setItem('plageArriveeMin', plageArriveeMin);
-    });
-    plageArriveeMaxInput.addEventListener('input', function() {
-        plageArriveeMax = toMinutes(this.value);
-        localStorage.setItem('plageArriveeMax', plageArriveeMax);
-    });
-}
-if (plageMidiMinInput && plageMidiMaxInput) {
-    plageMidiMin = toMinutes(plageMidiMinInput.value);
-    plageMidiMax = toMinutes(plageMidiMaxInput.value);
-    plageMidiMinInput.addEventListener('input', function() {
-        plageMidiMin = toMinutes(this.value);
-        localStorage.setItem('plageMidiMin', plageMidiMin);
-    });
-    plageMidiMaxInput.addEventListener('input', function() {
-        plageMidiMax = toMinutes(this.value);
-        localStorage.setItem('plageMidiMax', plageMidiMax);
-    });
-}
-if (plageDepartMinInput && plageDepartMaxInput) {
-    plageDepartMin = toMinutes(plageDepartMinInput.value);
-    plageDepartMax = toMinutes(plageDepartMaxInput.value);
-    plageDepartMinInput.addEventListener('input', function() {
-        plageDepartMin = toMinutes(this.value);
-        localStorage.setItem('plageDepartMin', plageDepartMin);
-    });
-    plageDepartMaxInput.addEventListener('input', function() {
-        plageDepartMax = toMinutes(this.value);
-        localStorage.setItem('plageDepartMax', plageDepartMax);
-    });
-}
-function clampDepartMins(mins) {
-    if (mins < plageDepartMin) return plageDepartMin;
-    if (mins > plageDepartMax) return plageDepartMax;
-    return mins;
-}
-function clampArriveeMins(mins) {
-    if (mins < plageArriveeMin) return plageArriveeMin;
-    if (mins > plageArriveeMax) return plageArriveeMax;
-    return mins;
-}
-function clampMidiMins(mins) {
-    if (mins < plageMidiMin) return plageMidiMin;
-    if (mins > plageMidiMax) return plageMidiMax;
-    return mins;
-}
-function updateCalculateur() {
-    const departIndication = document.getElementById('depart-indication');
-    if (departIndication) {
-        departIndication.textContent = '';
-        departIndication.style.color = '';
-    }
-    // Pause matin : mode durée ou début/fin
-    let pause1Mins = 0;
-    if (document.getElementById('calc-pause1-mode-duree')?.checked) {
-        const duree = document.getElementById('calc-pause1-duree')?.value;
-        if (/^\d{2}:\d{2}$/.test(duree)) {
-            const [hh, mm] = duree.split(':').map(Number);
-            pause1Mins = hh * 60 + mm;
-        }
-    } else {
-        pause1Mins = getPause1Minutes();
-    }
-    // Pause midi : mode durée ou début/fin
-    let pauseMins = 0;
-    if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
-        const duree = document.getElementById('calc-pause-midi-duree')?.value;
-        if (/^\d{2}:\d{2}$/.test(duree)) {
-            const [hh, mm] = duree.split(':').map(Number);
-            pauseMins = hh * 60 + mm;
-        }
-    } else {
-        pauseMins = getPauseMinutesAvecMin();
-    }
-    let travailMins = getHeuresJourMinutes();
-    let pauseSup = getPauseSupMinutes();
-    let pauseOfferteVal = getPauseOfferte();
-    let arriveeMins = null, departMins = null, departMinsAvantClamp = null;
-    // Calcul du delta d'heure à chaque modification
-    let delta = null;
-    // Gestion visuelle des plages
-    function checkPlage(input, mins, min, max) {
-        if (mins === null || isNaN(mins)) {
-            input.style.background = '';
-            return;
-        }
-        if (mins < min || mins > max) {
-            input.style.background = '#ffcccc';
-        } else {
-            input.style.background = '';
-        }
-    }
-    if (lastInput === 'calc-arrivee' && calcArrivee.value && /^\d{2}:\d{2}$/.test(calcArrivee.value)) {
-        arriveeMins = toMinutes(calcArrivee.value);
-        checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
-        departMins = arriveeMins + travailMins + pauseMins;
-        if (pause1Mins > pauseOfferteVal) {
-            departMins += (pause1Mins - pauseOfferteVal);
-        }
-        if (pauseSup > pauseOfferteVal) {
-            departMins += (pauseSup - pauseOfferteVal);
-        }
-        departMinsAvantClamp = departMins;
-        // On ne corrige plus la valeur, on affiche juste le calcul
-        calcDepart.value = toHHMM(departMins);
-        checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
-    } else if (lastInput === 'calc-depart' && calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
-        departMins = toMinutes(calcDepart.value);
-        checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
-        if (pause1Mins > pauseOfferteVal) {
-            departMins -= (pause1Mins - pauseOfferteVal);
-        }
-        if (pauseSup > pauseOfferteVal) {
-            departMins -= (pauseSup - pauseOfferteVal);
-        }
-        arriveeMins = departMins - travailMins - pauseMins;
-        calcArrivee.value = toHHMM(arriveeMins);
-        checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
-    } else if (
-        lastInput === 'calc-pause1-debut' || lastInput === 'calc-pause1-fin' ||
-        lastInput === 'calc-pause2-debut' || lastInput === 'calc-pause2-fin' ||
-        lastInput === 'calc-pause-debut' || lastInput === 'calc-pause-fin' ||
-        lastInput === 'calc-pause1-duree' || lastInput === 'calc-pause-midi-duree' ||
-        lastInput === 'heures-jour' || lastInput === 'heures-jour-hhmm'
-    ) {
-        // Si l'arrivée est remplie, on recalcule le départ
-        if (calcArrivee.value && /^\d{2}:\d{2}$/.test(calcArrivee.value)) {
-            arriveeMins = toMinutes(calcArrivee.value);
-            checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
-            departMins = arriveeMins + travailMins + pauseMins;
-            if (pause1Mins > pauseOfferteVal) {
-                departMins += (pause1Mins - pauseOfferteVal);
-            }
-            if (pauseSup > pauseOfferteVal) {
-                departMins += (pauseSup - pauseOfferteVal);
-            }
-            departMinsAvantClamp = departMins;
-            calcDepart.value = toHHMM(departMins);
-            checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
-        } else if (calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
-            departMins = toMinutes(calcDepart.value);
-            checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
-            if (pause1Mins > pauseOfferteVal) {
-                departMins -= (pause1Mins - pauseOfferteVal);
-            }
-            if (pauseSup > pauseOfferteVal) {
-                departMins -= (pauseSup - pauseOfferteVal);
-            }
-            arriveeMins = departMins - travailMins - pauseMins;
-            calcArrivee.value = toHHMM(arriveeMins);
-            checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
-        }
-    }
-    let infoPause1 = pause1Mins > 0 ? `pause matin de ${pause1Mins} min` : 'pas de pause matin';
-    let infoPauseSup = pauseSup > 0 ? `pause supp. de ${pauseSup} min` : 'pas de pause supp.';
-    calcInfo.textContent = '';
-}
-['calcPauseDebut', 'calcPauseFin', 'calcArrivee', 'calcDepart', 'calcPause2Debut', 'calcPause2Fin', 'calcPause1Debut', 'calcPause1Fin'].forEach(id => {
-    const el = document.getElementById(id.replace(/([A-Z])/g, '-$1').toLowerCase());
-    if (el) {
-        el.addEventListener('input', function() { lastInput = el.id; updateCalculateur(); });
-        el.addEventListener('change', function() { lastInput = el.id; updateCalculateur(); });
-    }
-});
-
-// Affichage initial correct de la pause supplémentaire si la case est cochée
-if (typeof calcPauseSupFields !== 'undefined' && calcPauseSupFields) calcPauseSupFields.style.display = pauseCheckbox.checked ? '' : 'none';
-
-if (heuresJourInput) {
-    heuresJourInput.addEventListener('input', updateCalculateur);
-    heuresJourInput.addEventListener('change', updateCalculateur);
-}
-
-// Initialisation des jours de travail
-initialiserJoursTravail();
-
-// Attendre que le DOM soit chargé pour initialiser le menu
-document.addEventListener('DOMContentLoaded', function() {
-    // --- Gestion du modal de menu ---
-    const btnMenu = document.getElementById('btn-menu');
-    const menuModalBg = document.getElementById('menu-modal-bg');
-    const menuModalClose = document.getElementById('menu-modal-close');
-
-    if (btnMenu && menuModalBg && menuModalClose) {
-        // Ouvrir le modal de menu
-        btnMenu.addEventListener('click', function() {
-            menuModalBg.style.display = 'flex';
-        });
-
-        // Fermer le modal de menu
-        menuModalClose.addEventListener('click', function() {
-            menuModalBg.style.display = 'none';
-        });
-
-        // Fermer le modal en cliquant à l'extérieur
-        menuModalBg.addEventListener('click', function(e) {
-            if (e.target === menuModalBg) {
-                menuModalBg.style.display = 'none';
-            }
-        });
-    }
-
-    // --- Gestion du module Paramètres ---
-    const menuParametres = document.getElementById('menu-parametres');
-    const parametresModalBg = document.getElementById('parametres-modal-bg');
-    const parametresModalClose = document.getElementById('parametres-modal-close');
-    const parametresAnnuler = document.getElementById('parametres-annuler');
-
-    if (menuParametres && parametresModalBg && parametresModalClose && parametresAnnuler) {
-        // Ouvrir le modal des paramètres
-        menuParametres.addEventListener('click', function() {
-            // Pré-remplir les champs avec les valeurs actuelles
-            const paramHeuresJour = document.getElementById('param-heures-jour');
-            const paramPauseOfferte = document.getElementById('param-pause-offerte');
-            const paramHeuresSupplementaires = document.getElementById('param-heures-supplementaires');
-            
-            if (paramHeuresJour) paramHeuresJour.value = heuresJour;
-            if (paramPauseOfferte) paramPauseOfferte.value = pauseOfferte;
-            if (paramHeuresSupplementaires) paramHeuresSupplementaires.value = heuresSupplementaires;
-            
-            // Pré-remplir les jours de travail
-            Object.keys(joursTravail).forEach(jour => {
-                const checkbox = document.getElementById(`param-jour-${jour}`);
-                if (checkbox) {
-                    checkbox.checked = joursTravail[jour];
-                }
-            });
-            
-            menuModalBg.style.display = 'none';
-            parametresModalBg.style.display = 'flex';
-        });
-
-        // Fermer le modal des paramètres
-        parametresModalClose.addEventListener('click', function() {
-            parametresModalBg.style.display = 'none';
-        });
-
-        parametresAnnuler.addEventListener('click', function() {
-            parametresModalBg.style.display = 'none';
-        });
-
-        // Fermer le modal en cliquant à l'extérieur
-        parametresModalBg.addEventListener('click', function(e) {
-            if (e.target === parametresModalBg) {
-                parametresModalBg.style.display = 'none';
-            }
-        });
-
-        // Synchronisation live des deux champs dans les paramètres
-        const paramHeuresJour = document.getElementById('param-heures-jour');
-        const paramHeuresJourHHMM = document.getElementById('param-heures-jour-hhmm');
-        if (paramHeuresJour && paramHeuresJourHHMM) {
-            // Initialisation
-            paramHeuresJour.value = heuresJour.toFixed(2);
-            paramHeuresJourHHMM.value = fractionToHHMM(heuresJour);
-            // Décimal -> HH:MM
-            paramHeuresJour.addEventListener('input', function() {
-                const val = parseFloat(this.value) || 0;
-                paramHeuresJourHHMM.value = fractionToHHMM(val);
-                heuresJour = val;
-                localStorage.setItem('heuresJour', heuresJour);
-                if (heuresJourInput) heuresJourInput.value = heuresJour.toFixed(2);
-                if (heuresJourHHMM) heuresJourHHMM.value = fractionToHHMM(heuresJour);
-                // Recalculer tous les écarts
-                jours = jours.map(jour => {
-                    return {
-                        ...jour,
-                        ecart: calculerEcart(parseFloat(jour.heuresTravaillees), heuresJour)
-                    };
-                });
-                localStorage.setItem('jours', JSON.stringify(jours));
-                afficherJours();
-            });
-            // HH:MM -> Décimal
-            paramHeuresJourHHMM.addEventListener('input', function() {
-                const val = hhmmToFraction(this.value);
-                paramHeuresJour.value = val.toFixed(2);
-                heuresJour = val;
-                localStorage.setItem('heuresJour', heuresJour);
-                if (heuresJourInput) heuresJourInput.value = heuresJour.toFixed(2);
-                if (heuresJourHHMM) heuresJourHHMM.value = fractionToHHMM(heuresJour);
-                // Recalculer tous les écarts
-                jours = jours.map(jour => {
-                    return {
-                        ...jour,
-                        ecart: calculerEcart(parseFloat(jour.heuresTravaillees), heuresJour)
-                    };
-                });
-                localStorage.setItem('jours', JSON.stringify(jours));
-                afficherJours();
-            });
-        }
-
-        // Appliquer les changements en temps réel pour la pause offerte
-        const paramPauseOfferte = document.getElementById('param-pause-offerte');
-        if (paramPauseOfferte) {
-            paramPauseOfferte.addEventListener('input', function() {
-                const nouvelleValeur = parseInt(this.value) || 15;
-                pauseOfferte = nouvelleValeur;
-                localStorage.setItem('pauseOfferte', pauseOfferte);
-                
-                // Mettre à jour l'interface
-                if (pauseOfferteInput) pauseOfferteInput.value = pauseOfferte;
-                
-                // Recalculer tous les écarts
-                jours = jours.map(jour => {
-                    return {
-                        ...jour,
-                        heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pauseSupActive, jour.pause2Debut, jour.pause2Fin, jour.pause1Debut, jour.pause1Fin)),
-                        ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pauseSupActive, jour.pause2Debut, jour.pause2Fin, jour.pause1Debut, jour.pause1Fin)), heuresJour)
-                    };
-                });
-                localStorage.setItem('jours', JSON.stringify(jours));
-                
-                // Mettre à jour l'affichage
-                afficherJours();
-                updateCalculateur();
-            });
-        }
-
-        // Appliquer les changements en temps réel pour les heures supplémentaires
-        const paramHeuresSupplementaires = document.getElementById('param-heures-supplementaires');
-        if (paramHeuresSupplementaires) {
-            paramHeuresSupplementaires.addEventListener('input', function() {
-                const nouvelleValeur = parseFloat(this.value) || 0;
-                heuresSupplementaires = nouvelleValeur;
-                localStorage.setItem('heuresSupplementaires', heuresSupplementaires);
-                
-                // Mettre à jour l'interface
-                if (heuresSupplementairesInput) heuresSupplementairesInput.value = heuresSupplementaires;
-                
-                // Mettre à jour l'affichage
-                afficherJours();
-            });
-        }
-
-        // Appliquer les changements en temps réel pour les jours de travail
-        Object.keys(joursTravail).forEach(jour => {
-            const checkbox = document.getElementById(`param-jour-${jour}`);
-            if (checkbox) {
-                checkbox.addEventListener('change', function() {
-                    joursTravail[jour] = this.checked;
-                    localStorage.setItem('joursTravail', JSON.stringify(joursTravail));
-                    
-                    // Mettre à jour l'affichage
-                    afficherJours();
-                    majCalendrier();
-                });
-            }
-        });
-    }
-
-    // --- Gestion du paramètre temps minimal pause midi ---
-    let pauseMidiMin = parseInt(localStorage.getItem('pauseMidiMin')) || 30;
-    const paramPauseMidiMin = document.getElementById('param-pause-midi-min');
-    if (paramPauseMidiMin) {
-        paramPauseMidiMin.value = pauseMidiMin;
-        paramPauseMidiMin.addEventListener('input', function() {
-            pauseMidiMin = parseInt(this.value) || 0;
-            localStorage.setItem('pauseMidiMin', pauseMidiMin);
-        });
-    }
-    window.getPauseMidiMin = function() { return pauseMidiMin; };
-});
-
-// Sélecteur du pictogramme à côté de la pause midi dans la calculette
-const midiIndication = document.getElementById('midi-indication');
-function updateMidiIndication() {
-    if (!midiIndication) return;
-    const min = plageMidiMin;
-    const max = plageMidiMax;
-    let show = false;
-    // Vérifie la saisie réelle dans la calculette
-    const pauseDebut = calcPauseDebut && calcPauseDebut.value ? toMinutes(calcPauseDebut.value) : null;
-    const pauseFin = calcPauseFin && calcPauseFin.value ? toMinutes(calcPauseFin.value) : null;
-    if (pauseDebut !== null && (pauseDebut < min || pauseDebut > max)) show = true;
-    if (pauseFin !== null && (pauseFin < min || pauseFin > max)) show = true;
-    midiIndication.textContent = show ? '⚠️' : '';
-}
-if (calcPauseDebut) calcPauseDebut.addEventListener('input', updateMidiIndication);
-if (calcPauseFin) calcPauseFin.addEventListener('input', updateMidiIndication);
-updateMidiIndication(); 
-
-['zero-arrivee','zero-depart','zero-pause-debut','zero-pause-fin','zero-pause1-debut','zero-pause1-fin'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) formatHeureInput(el);
-});
-
-// Sauvegarde et restauration des valeurs du module 'zero'
-const zeroPause1Debut = document.getElementById('zero-pause1-debut');
-const zeroPause1Fin = document.getElementById('zero-pause1-fin');
-const zeroPauseMidiDebut = document.getElementById('zero-pause-debut');
-const zeroPauseMidiFin = document.getElementById('zero-pause-fin');
-
-// Restauration à l'ouverture de la page
-if (zeroPause1Debut && localStorage.getItem('zeroPause1Debut')) zeroPause1Debut.value = localStorage.getItem('zeroPause1Debut');
-if (zeroPause1Fin && localStorage.getItem('zeroPause1Fin')) zeroPause1Fin.value = localStorage.getItem('zeroPause1Fin');
-if (zeroPauseMidiDebut && localStorage.getItem('zeroPauseMidiDebut')) zeroPauseMidiDebut.value = localStorage.getItem('zeroPauseMidiDebut');
-if (zeroPauseMidiFin && localStorage.getItem('zeroPauseMidiFin')) zeroPauseMidiFin.value = localStorage.getItem('zeroPauseMidiFin');
-
-// Sauvegarde à chaque modification
-if (zeroPause1Debut) zeroPause1Debut.addEventListener('input', function() { localStorage.setItem('zeroPause1Debut', zeroPause1Debut.value); });
-if (zeroPause1Fin) zeroPause1Fin.addEventListener('input', function() { localStorage.setItem('zeroPause1Fin', zeroPause1Fin.value); });
-if (zeroPauseMidiDebut) zeroPauseMidiDebut.addEventListener('input', function() { localStorage.setItem('zeroPauseMidiDebut', zeroPauseMidiDebut.value); });
-if (zeroPauseMidiFin) zeroPauseMidiFin.addEventListener('input', function() { localStorage.setItem('zeroPauseMidiFin', zeroPauseMidiFin.value); });
-
-// --- Calcul dynamique des heures sup du module zero ---
-const zeroArrivee = document.getElementById('zero-arrivee');
-const zeroDepart = document.getElementById('zero-depart');
-const zeroHeuresSup = document.getElementById('zero-heures-sup');
-
-function calculerHeuresSupZero() {
-    // Récupération des valeurs
-    const arrivee = zeroArrivee ? zeroArrivee.value : '';
-    const depart = zeroDepart ? zeroDepart.value : '';
-    // Pause matin
-    let pause1DureeMin = null;
-    if (document.getElementById('zero-pause1-mode-duree')?.checked) {
-        const duree = document.getElementById('zero-pause1-duree')?.value;
-        if (/^\d{2}:\d{2}$/.test(duree)) {
-            const [hh, mm] = duree.split(':').map(Number);
-            pause1DureeMin = hh * 60 + mm;
-        }
-    } else {
-        const pause1Debut = zeroPause1Debut ? zeroPause1Debut.value : '';
-        const pause1Fin = zeroPause1Fin ? zeroPause1Fin.value : '';
-        const toMinutes = (h) => {
-            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-            const [hh, mm] = h.split(':').map(Number);
-            return hh * 60 + mm;
-        };
-        const debutMin = toMinutes(pause1Debut);
-        const finMin = toMinutes(pause1Fin);
-        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
-            pause1DureeMin = finMin - debutMin;
-        }
-    }
-    // Pause midi
-    let pauseMidiDureeMin = null;
-    if (document.getElementById('zero-pause-midi-mode-duree')?.checked) {
-        const duree = document.getElementById('zero-pause-midi-duree')?.value;
-        if (/^\d{2}:\d{2}$/.test(duree)) {
-            const [hh, mm] = duree.split(':').map(Number);
-            pauseMidiDureeMin = hh * 60 + mm;
-        }
-    } else {
-        const pauseMidiDebut = zeroPauseMidiDebut ? zeroPauseMidiDebut.value : '';
-        const pauseMidiFin = zeroPauseMidiFin ? zeroPauseMidiFin.value : '';
-        const toMinutes = (h) => {
-            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-            const [hh, mm] = h.split(':').map(Number);
-            return hh * 60 + mm;
-        };
-        const debutMin = toMinutes(pauseMidiDebut);
-        const finMin = toMinutes(pauseMidiFin);
-        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
-            pauseMidiDureeMin = finMin - debutMin;
-        }
-    }
-    // Fonctions utilitaires
-    const toMinutes = (h) => {
-        if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-        const [hh, mm] = h.split(':').map(Number);
-        return hh * 60 + mm;
-    };
-    // Conversion
-    const arriveeMin = toMinutes(arrivee);
-    const departMin = toMinutes(depart);
-    // Paramètres globaux
-    let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
-    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
-    let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
-    // Calcul
-    if (
-        arriveeMin === null || departMin === null ||
-        pauseMidiDureeMin === null || pause1DureeMin === null
-    ) {
-        zeroHeuresSup.textContent = '';
-        return;
-    }
-    let dureeTravail = departMin - arriveeMin;
-    // Pause midi (toujours déduite, au moins le minimum)
-    let pauseMidi = pauseMidiDureeMin;
-    if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
-    dureeTravail -= pauseMidi;
-    // Pause matin : seul l'excédent > pause offerte est déduit
-    let pauseMatin = pause1DureeMin;
-    if (pauseMatin > pauseOfferteVal) {
-        dureeTravail -= (pauseMatin - pauseOfferteVal);
-    }
-    // Heures sup = durée de travail (en heures) - heures à faire par jour
-    let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
-    // Conversion en HH:MM
-    let totalMinutes = Math.round(heuresSup * 60);
-    let signe = totalMinutes >= 0 ? '+' : '-';
-    let absMinutes = Math.abs(totalMinutes);
-    let hh = Math.floor(absMinutes / 60).toString().padStart(2, '0');
-    let mm = (absMinutes % 60).toString().padStart(2, '0');
-    let hhmm = `(${signe}${hh}:${mm})`;
-    zeroHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h ' + hhmm;
-    zeroHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
-}
-
-['zero-arrivee','zero-depart','zero-pause-debut','zero-pause-fin','zero-pause1-debut','zero-pause1-fin'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', calculerHeuresSupZero);
-});
-// Calcul initial au chargement
-calculerHeuresSupZero();
-
-// Ajout de l'affichage des heures sup dans le module calculette
-const calcHeuresSup = document.createElement('span');
-calcHeuresSup.id = 'calc-heures-sup';
-calcHeuresSup.style.marginLeft = '8px';
-calcHeuresSup.style.fontWeight = 'bold';
-calcHeuresSup.style.color = '#1976d2';
-const calcDepartInput = document.getElementById('calc-depart');
-if (calcDepartInput && calcDepartInput.parentNode) {
-    calcDepartInput.parentNode.appendChild(calcHeuresSup);
-}
-
-function calculerHeuresSupCalculette() {
-    // Récupération des valeurs
-    const arrivee = calcArrivee ? calcArrivee.value : '';
-    const depart = calcDepart ? calcDepart.value : '';
-    const pause1Debut = calcPause1Debut ? calcPause1Debut.value : '';
-    const pause1Fin = calcPause1Fin ? calcPause1Fin.value : '';
-    const pauseMidiDebut = calcPauseDebut ? calcPauseDebut.value : '';
-    const pauseMidiFin = calcPauseFin ? calcPauseFin.value : '';
-    // Fonctions utilitaires
-    const toMinutes = (h) => {
-        if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-        const [hh, mm] = h.split(':').map(Number);
-        return hh * 60 + mm;
-    };
-    // Conversion
-    const arriveeMin = toMinutes(arrivee);
-    const departMin = toMinutes(depart);
-    const pause1DebutMin = toMinutes(pause1Debut);
-    const pause1FinMin = toMinutes(pause1Fin);
-    const pauseMidiDebutMin = toMinutes(pauseMidiDebut);
-    const pauseMidiFinMin = toMinutes(pauseMidiFin);
-    // Paramètres globaux
-    let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
-    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
-    let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
-    // Calcul
-    if (
-        arriveeMin === null || departMin === null ||
-        pauseMidiDebutMin === null || pauseMidiFinMin === null ||
-        pause1DebutMin === null || pause1FinMin === null
-    ) {
-        calcHeuresSup.textContent = '';
-        return;
-    }
-    let dureeTravail = departMin - arriveeMin;
-    // Pause midi (toujours déduite, au moins le minimum)
-    let pauseMidi = pauseMidiFinMin - pauseMidiDebutMin;
-    if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
-    dureeTravail -= pauseMidi;
-    // Pause matin : seul l'excédent > pause offerte est déduit
-    let pauseMatin = pause1FinMin - pause1DebutMin;
-    if (pauseMatin > pauseOfferteVal) {
-        dureeTravail -= (pauseMatin - pauseOfferteVal);
-    }
-    // Heures sup = durée de travail (en heures) - heures à faire par jour
-    let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
-    calcHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
-    calcHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
-}
-
-['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause1-debut','calc-pause1-fin'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', calculerHeuresSupCalculette);
-});
-// Calcul initial au chargement
-calculerHeuresSupCalculette(); 
-
-// --- Sauvegarde/restauration automatique des champs de la calculette ---
-const calcFields = [
-    'calc-arrivee', 'calc-depart',
-    'calc-pause-debut', 'calc-pause-fin',
-    'calc-pause1-debut', 'calc-pause1-fin',
-    'calc-pause2-debut', 'calc-pause2-fin'
-];
-calcFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-        // Restauration
-        const val = localStorage.getItem('calculette_' + id);
-        if (val) el.value = val;
-        // Sauvegarde à chaque modification et à la perte de focus (pour avoir la valeur formatée)
-        el.addEventListener('input', function() {
-            localStorage.setItem('calculette_' + id, el.value);
-        });
-        el.addEventListener('blur', function() {
-            localStorage.setItem('calculette_' + id, el.value);
-        });
-    }
-});
-// --- Sauvegarde/restauration automatique des champs du module zero ---
-const zeroFields = [
-    'zero-arrivee', 'zero-depart',
-    'zero-pause-debut', 'zero-pause-fin',
-    'zero-pause1-debut', 'zero-pause1-fin'
-];
-zeroFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-        // Restauration
-        const val = localStorage.getItem('zero_' + id);
-        if (val) el.value = val;
-        // Sauvegarde à chaque modification et à la perte de focus (pour avoir la valeur formatée)
-        el.addEventListener('input', function() {
-            localStorage.setItem('zero_' + id, el.value);
-        });
-        el.addEventListener('blur', function() {
-            localStorage.setItem('zero_' + id, el.value);
-        });
-    }
-});
-
-// Patch updateCalculateur pour sauvegarder la valeur calculée de calc-depart et calc-arrivee
-const oldUpdateCalculateur = updateCalculateur;
-updateCalculateur = function() {
-    oldUpdateCalculateur();
-    // Sauvegarde automatique des valeurs calculées
-    if (calcArrivee) {
-        localStorage.setItem('calculette_calc-arrivee', calcArrivee.value);
-    }
-    if (calcDepart) {
-        localStorage.setItem('calculette_calc-depart', calcDepart.value);
-    }
-};
-
-['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-        formatHeureInput(el);
-        el.addEventListener('blur', function() {
-            lastInput = el.id;
-            updateCalculateur();
-        });
-    }
-});
-
-function checkPlageZero(input, mins, min, max) {
-    if (mins === null || isNaN(mins)) {
-        input.style.background = '';
-        return;
-    }
-    if (mins < min || mins > max) {
-        input.style.background = '#ffcccc';
-    } else {
-        input.style.background = '';
-    }
-}
-function updateZeroPlages() {
-    const zeroArrivee = document.getElementById('zero-arrivee');
-    const zeroDepart = document.getElementById('zero-depart');
-    if (!zeroArrivee || !zeroDepart) return;
-    const toMinutes = (h) => {
-        if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-        const [hh, mm] = h.split(':').map(Number);
-        return hh * 60 + mm;
-    };
-    const arriveeMins = toMinutes(zeroArrivee.value);
-    const departMins = toMinutes(zeroDepart.value);
-    checkPlageZero(zeroArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
-    checkPlageZero(zeroDepart, departMins, plageDepartMin, plageDepartMax);
-}
-['zero-arrivee','zero-depart'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-        el.addEventListener('input', updateZeroPlages);
-        el.addEventListener('blur', updateZeroPlages);
-    }
-});
-// Appel initial
-updateZeroPlages();
-
-// --- Module 3 : calculette pause ---
-function formatHeureInputPause3(input) {
-    input.addEventListener('input', function(e) {
-        let v = input.value.replace(/[^0-9]/g, '');
-        if (v.length > 4) v = v.slice(0,4);
-        if (v.length >= 3) {
-            input.value = v.slice(0,2) + ':' + v.slice(2,4);
-        } else if (v.length >= 1) {
-            input.value = v;
-        }
-    });
-    input.addEventListener('blur', function() {
-        let v = input.value.replace(/[^0-9]/g, '');
-        if (v.length === 1) v = '0' + v;
-        if (v.length === 3) v = '0' + v;
-        if (v.length === 4) {
-            let h = v.slice(0,2);
-            let m = v.slice(2,4);
-            let hNum = parseInt(h, 10);
-            let mNum = parseInt(m, 10);
-            if (isNaN(hNum) || isNaN(mNum) || hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
-                input.value = '';
-                input.style.background = '#ffcccc';
-            } else {
-                input.value = h.padStart(2, '0') + ':' + m.padStart(2, '0');
-                input.style.background = '';
-            }
-        } else if (v.length === 2) {
-            let hNum = parseInt(v, 10);
-            if (isNaN(hNum) || hNum < 0 || hNum > 23) {
-                input.value = '';
-                input.style.background = '#ffcccc';
-            } else {
-                input.value = v.padStart(2, '0') + ':00';
-                input.style.background = '';
-            }
-        } else {
-            input.value = '';
-            input.style.background = '#ffcccc';
-        }
-        updatePause3Total();
-    });
-}
-function toMinutesPause3(hhmm) {
-    if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
-    const [h, m] = hhmm.split(':').map(Number);
-    return h * 60 + m;
-}
-function updatePause3Total() {
-    const lignes = document.querySelectorAll('#pause3-lignes .pause3-ligne');
-    let total = 0;
-    lignes.forEach(ligne => {
-        const debut = ligne.querySelector('.pause3-debut').value;
-        const fin = ligne.querySelector('.pause3-fin').value;
-        const debutMin = toMinutesPause3(debut);
-        const finMin = toMinutesPause3(fin);
-        if (debutMin !== null && finMin !== null && finMin > debutMin) {
-            total += (finMin - debutMin);
-        }
-    });
-    // Affichage total minutes + heures
-    const totalHeures = (total / 60).toFixed(2);
-    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
-    let supp = total - pauseOfferteVal;
-    let suppAff = '';
-    if (supp !== 0) {
-        suppAff = ` | <span id='pause3-supp-aff'>${supp > 0 ? '+' : ''}${supp} min (${(supp/60).toFixed(2)} h)</span>`;
-    } else {
-        suppAff = ` | <span id='pause3-supp-aff'>0 min (0.00 h)</span>`;
-    }
-    document.getElementById('pause3-total').innerHTML = `${total} min (${totalHeures} h)${suppAff}`;
-    // Coloration dynamique
-    const suppSpan = document.getElementById('pause3-supp-aff');
-    if (suppSpan) {
-        if (supp < 0) {
-            suppSpan.style.color = 'green';
-        } else if (supp > 0) {
-            suppSpan.style.color = 'red';
-        } else {
-            suppSpan.style.color = 'black';
-        }
-    }
-    // Renumérote les labels
-    document.querySelectorAll('#pause3-lignes .pause3-ligne').forEach((l, i) => {
-        l.querySelector('span').textContent = (i+1).toString();
-    });
-}
-function addPause3Ligne(nom) {
-    const lignesDiv = document.getElementById('pause3-lignes');
-    const idx = lignesDiv.querySelectorAll('.pause3-ligne').length + 1;
-    const div = document.createElement('div');
-    div.className = 'pause3-ligne';
-    div.style.display = 'flex';
-    div.style.alignItems = 'center';
-    div.style.gap = '10px';
-    div.style.marginBottom = '6px';
-    div.innerHTML = `<span>pause${idx}</span>
-        <input type="text" class="pause3-debut" placeholder="Début" style="width:60px;" inputmode="numeric" autocomplete="off">
-        <span>à</span>
-        <input type="text" class="pause3-fin" placeholder="Fin" style="width:60px;" inputmode="numeric" autocomplete="off">
-        <button type="button" class="pause3-add" style="margin-left:8px; font-size:1.2em;">+</button>
-        <button type="button" class="pause3-del" style="margin-left:4px; font-size:1.2em;">🗑️</button>`;
-    lignesDiv.appendChild(div);
-    const debut = div.querySelector('.pause3-debut');
-    const fin = div.querySelector('.pause3-fin');
-    formatHeureInputPause3(debut);
-    formatHeureInputPause3(fin);
-    debut.addEventListener('input', updatePause3Total);
-    fin.addEventListener('input', updatePause3Total);
-    debut.addEventListener('blur', updatePause3Total);
-    fin.addEventListener('blur', updatePause3Total);
-    div.querySelector('.pause3-add').addEventListener('click', function() {
-        addPause3Ligne();
-        updatePause3Total();
-    });
-    div.querySelector('.pause3-del').addEventListener('click', function() {
-        div.remove();
-        updatePause3Total();
-    });
-}
-// Initialisation du module 3
-(function() {
-    const debut = document.querySelector('#pause3-lignes .pause3-debut');
-    const fin = document.querySelector('#pause3-lignes .pause3-fin');
-    formatHeureInputPause3(debut);
-    formatHeureInputPause3(fin);
-    debut.addEventListener('input', updatePause3Total);
-    fin.addEventListener('input', updatePause3Total);
-    debut.addEventListener('blur', updatePause3Total);
-    fin.addEventListener('blur', updatePause3Total);
-    document.querySelector('#pause3-lignes .pause3-add').addEventListener('click', function() {
-        addPause3Ligne();
-        updatePause3Total();
-    });
-    document.getElementById('pause3-reset').addEventListener('click', function() {
-        const lignesDiv = document.getElementById('pause3-lignes');
-        lignesDiv.innerHTML = '';
-        // Ajoute la première ligne
-        const div = document.createElement('div');
-        div.className = 'pause3-ligne';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.gap = '10px';
-        div.style.marginBottom = '6px';
-        div.innerHTML = `<span>pause1</span>
-            <input type="text" class="pause3-debut" placeholder="Début" style="width:60px;" inputmode="numeric" autocomplete="off">
-            <span>à</span>
-            <input type="text" class="pause3-fin" placeholder="Fin" style="width:60px;" inputmode="numeric" autocomplete="off">
-            <button type="button" class="pause3-add" style="margin-left:8px; font-size:1.2em;">+</button>`;
-        lignesDiv.appendChild(div);
-        const debut = div.querySelector('.pause3-debut');
-        const fin = div.querySelector('.pause3-fin');
-        formatHeureInputPause3(debut);
-        formatHeureInputPause3(fin);
-        debut.addEventListener('input', updatePause3Total);
-        fin.addEventListener('input', updatePause3Total);
-        debut.addEventListener('blur', updatePause3Total);
-        fin.addEventListener('blur', updatePause3Total);
-        div.querySelector('.pause3-add').addEventListener('click', function() {
-            addPause3Ligne();
-            updatePause3Total();
-        });
-        updatePause3Total();
-    });
-    updatePause3Total();
-})();
-
-// Ajout de la synchronisation automatique des champs durée pour les pauses matin et midi du module 2
-function updateZeroPauseDurees() {
-    // Pause matin
-    const debut1 = document.getElementById('zero-pause1-debut');
-    const fin1 = document.getElementById('zero-pause1-fin');
-    const duree1 = document.getElementById('zero-pause1-duree');
-    if (debut1 && fin1 && duree1) {
-        if (/^\d{2}:\d{2}$/.test(debut1.value) && /^\d{2}:\d{2}$/.test(fin1.value)) {
-            const [h1, m1] = debut1.value.split(':').map(Number);
-            const [h2, m2] = fin1.value.split(':').map(Number);
-            let min1 = h1 * 60 + m1;
-            let min2 = h2 * 60 + m2;
-            let diff = min2 - min1;
-            if (diff >= 0) {
-                let hh = Math.floor(diff / 60).toString().padStart(2, '0');
-                let mm = (diff % 60).toString().padStart(2, '0');
-                duree1.value = hh + ':' + mm;
-            } else {
-                duree1.value = '';
-            }
-        } else {
-            duree1.value = '';
-        }
-    }
-    // Pause midi
-    const debutMidi = document.getElementById('zero-pause-debut');
-    const finMidi = document.getElementById('zero-pause-fin');
-    const dureeMidi = document.getElementById('zero-pause-midi-duree');
-    if (debutMidi && finMidi && dureeMidi) {
-        if (/^\d{2}:\d{2}$/.test(debutMidi.value) && /^\d{2}:\d{2}$/.test(finMidi.value)) {
-            const [h1, m1] = debutMidi.value.split(':').map(Number);
-            const [h2, m2] = finMidi.value.split(':').map(Number);
-            let min1 = h1 * 60 + m1;
-            let min2 = h2 * 60 + m2;
-            let diff = min2 - min1;
-            if (diff >= 0) {
-                let hh = Math.floor(diff / 60).toString().padStart(2, '0');
-                let mm = (diff % 60).toString().padStart(2, '0');
-                dureeMidi.value = hh + ':' + mm;
-            } else {
-                dureeMidi.value = '';
-            }
-        } else {
-            dureeMidi.value = '';
-        }
-    }
-}
-['zero-pause1-debut','zero-pause1-fin','zero-pause-debut','zero-pause-fin'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', updateZeroPauseDurees);
-});
-// Appliquer la mise en forme automatique aux champs de durée du module 2
-['zero-pause1-duree', 'zero-pause-midi-duree'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-        formatHeureInputPause3(el);
-        el.addEventListener('input', function() {
-            // Sauvegarde en localStorage
-            localStorage.setItem('zero_' + id, el.value);
-            // Calcul seulement si le mode durée est actif
-            if (
-                (id === 'zero-pause1-duree' && document.getElementById('zero-pause1-mode-duree')?.checked) ||
-                (id === 'zero-pause-midi-duree' && document.getElementById('zero-pause-midi-mode-duree')?.checked)
-            ) {
-                calculerHeuresSupZero();
-            }
-        });
-        // Restauration
-        const val = localStorage.getItem('zero_' + id);
-        if (val) el.value = val;
-    }
-});
-
-// Gestion de l'affichage des modes de saisie pause matin (début/fin ou durée)
-const zeroPause1ModeDebutFin = document.getElementById('zero-pause1-mode-debutfin');
-const zeroPause1ModeDuree = document.getElementById('zero-pause1-mode-duree');
-const zeroPause1DebutFinFields = document.getElementById('zero-pause1-debutfin-fields');
-const zeroPause1DureeField = document.getElementById('zero-pause1-duree-field');
-if (zeroPause1ModeDebutFin && zeroPause1ModeDuree && zeroPause1DebutFinFields && zeroPause1DureeField) {
-    zeroPause1ModeDebutFin.addEventListener('change', function() {
-        if (zeroPause1ModeDebutFin.checked) {
-            zeroPause1DebutFinFields.style.display = 'flex';
-            zeroPause1DureeField.style.display = 'none';
-        }
-    });
-    zeroPause1ModeDuree.addEventListener('change', function() {
-        if (zeroPause1ModeDuree.checked) {
-            zeroPause1DebutFinFields.style.display = 'none';
-            zeroPause1DureeField.style.display = 'flex';
-        }
-    });
-}
-// Gestion de l'affichage des modes de saisie pause midi (début/fin ou durée)
-const zeroPauseMidiModeDebutFin = document.getElementById('zero-pause-midi-mode-debutfin');
-const zeroPauseMidiModeDuree = document.getElementById('zero-pause-midi-mode-duree');
-const zeroPauseMidiDebutFinFields = document.getElementById('zero-pause-midi-debutfin-fields');
-const zeroPauseMidiDureeField = document.getElementById('zero-pause-midi-duree-field');
-if (zeroPauseMidiModeDebutFin && zeroPauseMidiModeDuree && zeroPauseMidiDebutFinFields && zeroPauseMidiDureeField) {
-    zeroPauseMidiModeDebutFin.addEventListener('change', function() {
-        if (zeroPauseMidiModeDebutFin.checked) {
-            zeroPauseMidiDebutFinFields.style.display = 'flex';
-            zeroPauseMidiDureeField.style.display = 'none';
-        }
-    });
-    zeroPauseMidiModeDuree.addEventListener('change', function() {
-        if (zeroPauseMidiModeDuree.checked) {
-            zeroPauseMidiDebutFinFields.style.display = 'none';
-            zeroPauseMidiDureeField.style.display = 'flex';
-        }
-    });
-}
 
 // ... existing code ...
 // Gestion de l'affichage des modes de saisie pause matin (début/fin ou durée) pour le module 1
@@ -2312,5 +1334,137 @@ function totalPausesDyn(jour) {
         });
     }
     return total;
+}
+// ... existing code ...
+
+// ... existing code ...
+// --- Gestion du filtre mois/année pour les jours saisis avec boutons ---
+const moisJoursBar = document.getElementById('mois-jours-bar');
+let moisJoursSelectionne = currentMonth;
+function majFiltreMoisJoursSaisis() {
+    // Met à jour le style des boutons
+    if (moisJoursBar) {
+        moisJoursBar.querySelectorAll('[data-mois]').forEach(btn => {
+            if (parseInt(btn.dataset.mois) === moisJoursSelectionne) {
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+    }
+    if (anneeJoursSaisis) anneeJoursSaisis.textContent = currentYear;
+}
+if (moisJoursBar) {
+    moisJoursBar.querySelectorAll('[data-mois]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            moisJoursSelectionne = parseInt(this.dataset.mois);
+            afficherJoursFiltre();
+        });
+    });
+}
+// --- Surcharge afficherJoursFiltre pour utiliser moisJoursSelectionne ---
+function afficherJoursFiltre() {
+    // Filtrage par mois/année
+    let moisFiltre = moisJoursSelectionne;
+    let anneeFiltre = currentYear;
+    // On ne garde que les jours du mois/année sélectionnés
+    const joursAffiches = jours.filter(jour => {
+        if (!jour.date) return false;
+        const [annee, mois] = jour.date.split('-');
+        return parseInt(mois, 10) - 1 === moisFiltre && parseInt(annee, 10) === anneeFiltre;
+    });
+    // On remplace temporairement jours par joursAffiches pour l'affichage
+    const joursOriginaux = jours;
+    jours = joursAffiches;
+    afficherJours();
+    jours = joursOriginaux;
+    majFiltreMoisJoursSaisis();
+}
+// Synchronise le filtre lors du changement de mois/année dans le calendrier
+function syncFiltreMoisAvecCalendrier() {
+    moisJoursSelectionne = currentMonth;
+    majFiltreMoisJoursSaisis();
+    afficherJoursFiltre();
+}
+// SUPPRESSION DE LA REDEFINITION RECURSIVE DE renderCalendrier
+// Initialisation
+majFiltreMoisJoursSaisis();
+afficherJoursFiltre();
+// ... existing code ...
+
+// ... existing code ...
+// Ajoute la fonction utilitaire pour formater les champs HH:MM (doit être placée avant tout appel)
+function formatHeureInputPause3(input) {
+    input.addEventListener('input', function(e) {
+        let v = input.value.replace(/[^0-9]/g, '');
+        if (v.length > 4) v = v.slice(0,4);
+        if (v.length >= 3) {
+            input.value = v.slice(0,2) + ':' + v.slice(2,4);
+        } else if (v.length >= 1) {
+            input.value = v;
+        }
+    });
+    input.addEventListener('blur', function() {
+        let v = input.value.replace(/[^0-9]/g, '');
+        if (v.length === 1) v = '0' + v;
+        if (v.length === 3) v = '0' + v;
+        if (v.length === 4) {
+            let h = v.slice(0,2);
+            let m = v.slice(2,4);
+            let hNum = parseInt(h, 10);
+            let mNum = parseInt(m, 10);
+            if (isNaN(hNum) || isNaN(mNum) || hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
+                input.value = '';
+            } else {
+                input.value = h.padStart(2, '0') + ':' + m.padStart(2, '0');
+            }
+        } else if (v.length === 2) {
+            let hNum = parseInt(v, 10);
+            if (isNaN(hNum) || hNum < 0 || hNum > 23) {
+                input.value = '';
+            } else {
+                input.value = v.padStart(2, '0') + ':00';
+            }
+        } else {
+            input.value = '';
+        }
+    });
+}
+// ... existing code ...
+
+// ... existing code ...
+// Ajoute la fonction addPause3Ligne avant toute utilisation
+function addPause3Ligne(nom) {
+    const lignesDiv = document.getElementById('pause3-lignes');
+    const idx = lignesDiv.querySelectorAll('.pause3-ligne').length + 1;
+    const div = document.createElement('div');
+    div.className = 'pause3-ligne';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '10px';
+    div.style.marginBottom = '6px';
+    div.innerHTML = `<span>pause${idx}</span>
+        <input type="text" class="pause3-debut" placeholder="Début" style="width:60px;" inputmode="numeric" autocomplete="off">
+        <span>à</span>
+        <input type="text" class="pause3-fin" placeholder="Fin" style="width:60px;" inputmode="numeric" autocomplete="off">
+        <button type="button" class="pause3-add" style="margin-left:8px; font-size:1.2em;">+</button>
+        <button type="button" class="pause3-del" style="margin-left:4px; font-size:1.2em;">🗑️</button>`;
+    lignesDiv.appendChild(div);
+    const debut = div.querySelector('.pause3-debut');
+    const fin = div.querySelector('.pause3-fin');
+    formatHeureInputPause3(debut);
+    formatHeureInputPause3(fin);
+    debut.addEventListener('input', updatePause3Total);
+    fin.addEventListener('input', updatePause3Total);
+    debut.addEventListener('blur', updatePause3Total);
+    fin.addEventListener('blur', updatePause3Total);
+    div.querySelector('.pause3-add').addEventListener('click', function() {
+        addPause3Ligne();
+        updatePause3Total();
+    });
+    div.querySelector('.pause3-del').addEventListener('click', function() {
+        div.remove();
+        updatePause3Total();
+    });
 }
 // ... existing code ...
