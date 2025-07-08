@@ -1,5 +1,5 @@
 À MODIFIER :
-
+Tri par date dans le module jour saisis
 Problème de calcul du nombre d'heure supplémentaire dans les jours saisis ou dans le module zéro
 Module de calcule de pause, quand on supprime une ligne la mise en forme de la numerotation change
 
