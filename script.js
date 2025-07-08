@@ -334,6 +334,8 @@ function formaterDate(dateStr) {
 function afficherJours() {
     tableBody.innerHTML = '';
     let totalEcart = 0;
+    // Trier les jours par date décroissante (du plus récent au plus ancien)
+    jours.sort((a, b) => b.date.localeCompare(a.date));
     // On crée un Set de tous les jours du mois affiché (jours RTT inclus même sans saisie d'horaire)
     const joursRTTSet = new Set(joursRTT);
     // On affiche les jours saisis
@@ -418,6 +420,18 @@ function afficherJours() {
             }
         }
         let pauseCell = hasPause ? `${totalPauseHHMM}${suppPauseAff}` : '-';
+        // Conversion de l'écart en HH:MM
+        const ecartMinutes = Math.round(ecartDyn * 60);
+        const signe = ecartMinutes >= 0 ? '+' : '-';
+        const absMinutes = Math.abs(ecartMinutes);
+        const hh = String(Math.floor(absMinutes / 60)).padStart(2, '0');
+        const mm = String(absMinutes % 60).padStart(2, '0');
+        const ecartHHMM = `${signe}${hh}:${mm}`;
+        // Couleur plus claire selon le signe
+        let ecartHHMMColor = '#8bc34a'; // vert clair par défaut
+        if (ecartDyn < 0) ecartHHMMColor = '#ff8a80'; // rouge clair
+        else if (ecartDyn === 0) ecartHHMMColor = '#bdbdbd'; // gris clair
+        else ecartHHMMColor = '#8bc34a'; // vert clair
         tr.innerHTML = `
             <td>${formaterDate(jour.date)}</td>
             <td>${jour.arrivee}</td>
@@ -425,7 +439,7 @@ function afficherJours() {
             <td class="pause-cell">${pauseCell}</td>
             <td>${jour.depart}</td>
             <td>${(isVac || isRtt) ? '0.00' : heuresTravDyn.toFixed(2)}<br><span style="font-size:0.95em;color:#555;">${heuresTravHHMM}</span></td>
-            <td class="${ecartClassDyn}">${ecartAfficheDyn}</td>
+            <td class="${ecartClassDyn}">${ecartAfficheDyn}<br><span style="font-size:0.95em; color:${ecartHHMMColor}; font-weight:normal;">${ecartHHMM}</span></td>
             <td><button class="btn-supprimer" data-idx="${idx}">Supprimer</button></td>
         `;
         // Appliquer la classe CSS pour griser la ligne
