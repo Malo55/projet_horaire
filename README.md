@@ -1,7 +1,11 @@
 À MODIFIER :
+Tri par date dans le module jour saisis
+Problème de calcul du nombre d'heure supplémentaire dans les jours saisis ou dans le module zéro
+Module de calcule de pause, quand on supprime une ligne la mise en forme de la numerotation change
 
 À AJOUTER :
 Un switch pour afficher les heures en HH:MM:SS ou en HH:MM que pour les champs du calendrier
+Un convertisseur HH:MM en x,xx et vice versa
 Affichage des h sup en x,xx aussi (à coté ou en dessous)
 
 Un mode RHT
