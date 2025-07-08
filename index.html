@@ -35,6 +35,21 @@
       #plage-horaires-module input[type="time"] {
         -moz-appearance: textfield;
       }
+      #table-jours-container {
+        max-height: 420px; /* 10 lignes de 42px environ */
+        overflow-y: auto;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px #0001;
+        background: #fff;
+      }
+      #table-jours {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      #table-jours thead th, #table-jours td {
+        padding: 8px 6px;
+        text-align: center;
+      }
     </style>
 </head>
 <body>
@@ -230,23 +245,25 @@
         </div>
     </div>
     <h2>Jours saisis</h2>
-    <table id="table-jours">
+    <div id="table-jours-container">
+      <table id="table-jours">
         <thead>
-            <tr>
-                <th>Date</th>
-                <th>Arrivée</th>
-                <th>Midi</th>
-                <th>Pause</th>
-                <th>Départ</th>
-                <th>Heures travaillées</th>
-                <th>Écart</th>
-                <th>Actions</th>
-            </tr>
+          <tr>
+            <th>Date</th>
+            <th>Arrivée</th>
+            <th>Midi</th>
+            <th>Pause</th>
+            <th>Départ</th>
+            <th>Heures travaillées</th>
+            <th>Écart</th>
+            <th>Actions</th>
+          </tr>
         </thead>
         <tbody>
-            <!-- Les jours saisis s'afficheront ici -->
+          <!-- Les jours saisis s'afficheront ici -->
         </tbody>
-    </table>
+      </table>
+    </div>
     <div id="total-ecart"></div>
     <div id="actions-excel">
         <button id="export-excel">Exporter en Excel</button>
