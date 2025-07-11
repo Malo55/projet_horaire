@@ -2821,3 +2821,71 @@ function fermerTousLesModals() {
         el.style.display = 'none';
     });
 }
+
+// ... existing code ...
+// --- Gestion du format horaire global (HH:MM ou HH:MM:SS) ---
+let formatHoraireSecondes = false;
+const formatSwitch = document.getElementById('param-format-horaire');
+const formatLabel = document.getElementById('param-format-horaire-label');
+if (formatSwitch) {
+    // Restauration depuis le localStorage
+    if (localStorage.getItem('formatHoraireSecondes')) {
+        formatHoraireSecondes = localStorage.getItem('formatHoraireSecondes') === 'true';
+        formatSwitch.checked = formatHoraireSecondes;
+        formatLabel.textContent = formatHoraireSecondes ? 'HH:MM:SS' : 'HH:MM';
+    }
+    formatSwitch.addEventListener('change', function() {
+        formatHoraireSecondes = formatSwitch.checked;
+        formatLabel.textContent = formatHoraireSecondes ? 'HH:MM:SS' : 'HH:MM';
+        localStorage.setItem('formatHoraireSecondes', formatHoraireSecondes);
+        appliquerFormatHoraireGlobal();
+    });
+}
+
+function appliquerFormatHoraireGlobal() {
+    // Sélecteurs pour tous les champs horaires (input type text avec placeholder HH:MM ou HH:MM:SS)
+    const inputs = document.querySelectorAll('input[type="text"][placeholder^="HH:MM"]');
+    inputs.forEach(input => {
+        if (formatHoraireSecondes) {
+            input.placeholder = 'HH:MM:SS';
+            input.style.width = '66px';
+            // Si la valeur est au format HH:MM, on ajoute :00
+            if (/^\d{2}:\d{2}$/.test(input.value)) input.value = input.value + ':00';
+        } else {
+            input.placeholder = 'HH:MM';
+            input.style.width = '54px';
+            // Si la valeur est au format HH:MM:SS, on retire les secondes
+            if (/^\d{2}:\d{2}:\d{2}$/.test(input.value)) input.value = input.value.slice(0,5);
+        }
+    });
+}
+// Appliquer au chargement
+appliquerFormatHoraireGlobal();
+
+// Adapter les fonctions de formatage et de conversion HH:MM/HH:MM:SS partout où nécessaire
+function toMinutesFlexible(horaire) {
+    if (!horaire) return 0;
+    if (/^\d{2}:\d{2}$/.test(horaire)) {
+        const [h, m] = horaire.split(':').map(Number);
+        return h * 60 + m;
+    }
+    if (/^\d{2}:\d{2}:\d{2}$/.test(horaire)) {
+        const [h, m, s] = horaire.split(':').map(Number);
+        return h * 60 + m + Math.floor(s/60);
+    }
+    return 0;
+}
+function toFlexibleFormat(mins) {
+    const sign = mins < 0 ? '-' : '';
+    mins = Math.abs(mins);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (formatHoraireSecondes) {
+        return sign + h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0') + ':00';
+    } else {
+        return sign + h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
+    }
+}
+// Remplacer les appels à toMinutes et toHHMM dans les modules concernés par toMinutesFlexible et toFlexibleFormat
+// ... (à faire dans les modules 4 et 5, et autres champs horaires si besoin) ...
+// ... existing code ...
