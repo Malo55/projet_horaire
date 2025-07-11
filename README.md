@@ -1,5 +1,6 @@
 À MODIFIER :
 figer les volets pour le module jours saisis
+module addition/soustraction d'heure
 
 À AJOUTER :
 Un switch pour afficher les heures en HH:MM:SS ou en HH:MM que pour les champs du calendrier
