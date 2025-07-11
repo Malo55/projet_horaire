@@ -192,12 +192,23 @@
         <div style="margin: 8px 0; font-weight: bold;">Total pauses : <span id="pause3-total">0 min</span></div>
         <button type="button" id="pause3-reset" style="margin-top:8px;">Reset</button>
       </div>
-      <div id="convertisseur-module-4" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px; grid-column: 2; grid-row: 2;">
-        <h3 style="margin-top:0;">Module 4 : convertisseur</h3>
-        <div style="display:flex; gap:12px; align-items:center; justify-content:center; margin-bottom:8px;">
-          <input type="text" id="conv-hhmm" placeholder="HH:MM" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
-          <span style="font-size:1.5em; font-weight:bold;">=</span>
-          <input type="text" id="conv-decimal" placeholder="0,00" style="width:90px; text-align:center;" inputmode="decimal" autocomplete="off">
+      <!-- Ancien module 4 remplacé par deux modules superposés -->
+      <div style="display: flex; flex-direction: column; gap: 18px; grid-column: 2; grid-row: 2;">
+        <div id="convertisseur-module-4" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px;">
+          <h3 style="margin-top:0;">Module 4 : convertisseur</h3>
+          <div style="display:flex; gap:12px; align-items:center; justify-content:center; margin-bottom:8px;">
+            <input type="text" id="conv-hhmm" placeholder="HH:MM" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
+            <span style="font-size:1.5em; font-weight:bold;">=</span>
+            <input type="text" id="conv-decimal" placeholder="0,00" style="width:90px; text-align:center;" inputmode="decimal" autocomplete="off">
+          </div>
+        </div>
+        <div id="horaire-calc-module-5" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px;">
+          <h3 style="margin-top:0;">Module 5 : addition/soustraction d'horaires</h3>
+          <div id="horaire-calc-section">
+            <div id="horaire-calc-lignes"></div>
+            <div style="margin-top:8px;"><!-- espace pour les boutons dynamiques --></div>
+            <div style="margin-top:12px; font-weight:bold;">Total : <span id="horaire-calc-total-hhmm">00:00</span> (<span id="horaire-calc-total-decimal">0,00</span> h)</div>
+          </div>
         </div>
       </div>
     </div>

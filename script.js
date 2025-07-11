@@ -2416,7 +2416,10 @@ safeAddEventListener('pause3-reset', 'click', function() {
     if (convHHMM) {
         formatHeureInputPause3(convHHMM);
         safeAddEventListener('conv-hhmm', 'input', function() {
-            // Conversion HH:MM -> décimal
+            // Conversion HH:MM -> décimal (ne rien faire ici)
+            localStorage.setItem('convertisseur_hhmm', convHHMM.value);
+        });
+        safeAddEventListener('conv-hhmm', 'blur', function() {
             let v = convHHMM.value;
             if (/^\d{2}:\d{2}$/.test(v)) {
                 const [h, m] = v.split(':').map(Number);
@@ -2429,7 +2432,10 @@ safeAddEventListener('pause3-reset', 'click', function() {
     }
     if (convDecimal) {
         safeAddEventListener('conv-decimal', 'input', function() {
-            // Conversion décimal -> HH:MM
+            // Conversion décimal -> HH:MM (ne rien faire ici)
+            localStorage.setItem('convertisseur_decimal', convDecimal.value);
+        });
+        safeAddEventListener('conv-decimal', 'blur', function() {
             let v = convDecimal.value.replace(',', '.');
             let dec = parseFloat(v);
             if (!isNaN(dec)) {
@@ -2440,6 +2446,125 @@ safeAddEventListener('pause3-reset', 'click', function() {
             }
             localStorage.setItem('convertisseur_decimal', convDecimal.value);
         });
+    }
+
+    // --- Addition/Soustraction d'horaires ---
+    const section = document.getElementById('horaire-calc-section');
+    if (section) {
+        const lignesDiv = document.getElementById('horaire-calc-lignes');
+        const totalHHMM = document.getElementById('horaire-calc-total-hhmm');
+        const totalDecimal = document.getElementById('horaire-calc-total-decimal');
+        let lignes = [];
+
+        function toMinutes(hhmm) {
+            if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return 0;
+            const [h, m] = hhmm.split(':').map(Number);
+            return h * 60 + m;
+        }
+        function toHHMM(mins) {
+            const sign = mins < 0 ? '-' : '';
+            mins = Math.abs(mins);
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return sign + h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
+        }
+        function toDecimal(mins) {
+            const sign = mins < 0 ? '-' : '';
+            mins = Math.abs(mins);
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            const dec = h + m/60;
+            return sign + dec.toFixed(2).replace('.', ',');
+        }
+        function renderLignes() {
+            lignesDiv.innerHTML = '';
+            if (lignes.length === 0) lignes.push({op: '+', val: ''});
+            lignes.forEach((ligne, idx) => {
+                const div = document.createElement('div');
+                div.style.display = 'flex';
+                div.style.alignItems = 'center';
+                div.style.gap = '8px';
+                div.style.marginBottom = '4px';
+                // Boutons + et - pour l'opération
+                const btnPlus = document.createElement('button');
+                btnPlus.type = 'button';
+                btnPlus.textContent = '+';
+                btnPlus.style.fontWeight = 'bold';
+                btnPlus.style.width = '28px';
+                btnPlus.style.height = '28px';
+                btnPlus.style.borderRadius = '50%';
+                btnPlus.style.border = '1px solid #1976d2';
+                btnPlus.style.background = ligne.op === '+' ? '#1976d2' : '#fff';
+                btnPlus.style.color = ligne.op === '+' ? '#fff' : '#1976d2';
+                btnPlus.style.transition = 'background 0.2s, color 0.2s';
+                btnPlus.onclick = () => { ligne.op = '+'; renderLignes(); updateTotal(); };
+                div.appendChild(btnPlus);
+                const btnMoins = document.createElement('button');
+                btnMoins.type = 'button';
+                btnMoins.textContent = '-';
+                btnMoins.style.fontWeight = 'bold';
+                btnMoins.style.width = '28px';
+                btnMoins.style.height = '28px';
+                btnMoins.style.borderRadius = '50%';
+                btnMoins.style.border = '1px solid #d32f2f';
+                btnMoins.style.background = ligne.op === '-' ? '#d32f2f' : '#fff';
+                btnMoins.style.color = ligne.op === '-' ? '#fff' : '#d32f2f';
+                btnMoins.style.transition = 'background 0.2s, color 0.2s';
+                btnMoins.onclick = () => { ligne.op = '-'; renderLignes(); updateTotal(); };
+                div.appendChild(btnMoins);
+                // Champ HH:MM
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = 'HH:MM';
+                input.value = ligne.val;
+                input.style.width = '70px';
+                input.style.textAlign = 'center';
+                input.autocomplete = 'off';
+                input.inputMode = 'numeric';
+                formatHeureInputPause3(input);
+                input.oninput = () => { ligne.val = input.value; };
+                input.onblur = () => { ligne.val = input.value; updateTotal(); };
+                div.appendChild(input);
+                // Bouton + pour ajouter une ligne sous la ligne courante
+                const btnAdd = document.createElement('button');
+                btnAdd.type = 'button';
+                btnAdd.textContent = '+';
+                btnAdd.title = 'Ajouter une ligne';
+                btnAdd.style.marginLeft = '4px';
+                btnAdd.style.fontSize = '1.2em';
+                btnAdd.style.width = '28px';
+                btnAdd.style.height = '28px';
+                btnAdd.style.borderRadius = '50%';
+                btnAdd.style.border = '1px solid #888';
+                btnAdd.style.background = '#f5f5f5';
+                btnAdd.onclick = () => { lignes.splice(idx+1, 0, {op: '+', val: ''}); renderLignes(); updateTotal(); };
+                div.appendChild(btnAdd);
+                // Bouton supprimer
+                if (lignes.length > 1) {
+                    const btnDel = document.createElement('button');
+                    btnDel.type = 'button';
+                    btnDel.textContent = '🗑️';
+                    btnDel.style.marginLeft = '4px';
+                    btnDel.style.fontSize = '1.1em';
+                    btnDel.onclick = () => { lignes.splice(idx, 1); renderLignes(); updateTotal(); };
+                    div.appendChild(btnDel);
+                }
+                lignesDiv.appendChild(div);
+            });
+        }
+        function updateTotal() {
+            let total = 0;
+            lignes.forEach(ligne => {
+                const mins = toMinutes(ligne.val);
+                if (ligne.op === '+') total += mins;
+                else total -= mins;
+            });
+            totalHHMM.textContent = toHHMM(total);
+            totalDecimal.textContent = toDecimal(total);
+        }
+        // Initialisation
+        renderLignes();
+        updateTotal();
     }
 })();
 // ... existing code ...
