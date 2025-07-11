@@ -194,13 +194,10 @@
       </div>
       <div id="convertisseur-module-4" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px; grid-column: 2; grid-row: 2;">
         <h3 style="margin-top:0;">Module 4 : convertisseur</h3>
-        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
-          <label for="conv-hhmm" style="min-width:120px;">HH:MM :</label>
-          <input type="text" id="conv-hhmm" placeholder="HH:MM" style="width:90px;" inputmode="numeric" autocomplete="off">
-        </div>
-        <div style="display:flex; gap:12px; align-items:center;">
-          <label for="conv-decimal" style="min-width:120px;">x,xx h :</label>
-          <input type="text" id="conv-decimal" placeholder="0,00" style="width:90px;" inputmode="decimal" autocomplete="off">
+        <div style="display:flex; gap:12px; align-items:center; justify-content:center; margin-bottom:8px;">
+          <input type="text" id="conv-hhmm" placeholder="HH:MM" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
+          <span style="font-size:1.5em; font-weight:bold;">=</span>
+          <input type="text" id="conv-decimal" placeholder="0,00" style="width:90px; text-align:center;" inputmode="decimal" autocomplete="off">
         </div>
       </div>
     </div>

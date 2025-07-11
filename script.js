@@ -437,13 +437,30 @@ function afficherJours() {
         totalEcart -= heuresJour;
     });
     
-    // Ajouter les heures supplémentaires au total
-    totalEcart += heuresSupplementaires;
-    
-    // Affichage du total d'heures supplémentaires
+    // Affichage du total d'heures supplémentaires du mois
     const totalEcartDiv = document.getElementById('total-ecart');
     const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
-    totalEcartDiv.innerHTML = `Total d'heures supplémentaires : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
+    totalEcartDiv.innerHTML = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
+
+    // Calcul et affichage du total d'heure supplémentaire de l'année (avec heuresSupplementaires)
+    const anneeStrAnnee = String(currentYear);
+    const joursAnnee = jours.filter(jour => jour.date.startsWith(anneeStrAnnee + '-'));
+    let totalEcartAnnee = 0;
+    // On prend en compte les RTT de l'année
+    const joursRTTAnnee = joursRTT.filter(dateStr => dateStr.startsWith(anneeStrAnnee + '-'));
+    joursAnnee.forEach(jour => {
+        const isVac = isJourVacances(jour.date);
+        const isRtt = isJourRTT(jour.date);
+        let heuresTravDyn = (isVac || isRtt) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+        let ecartDyn = (isVac || isRtt) ? 0 : heuresTravDyn - heuresJour;
+        totalEcartAnnee += ecartDyn;
+    });
+    // Déduction RTT sans saisie d'horaire
+    totalEcartAnnee -= joursRTTAnnee.length * heuresJour;
+    // Ajout du paramètre heuresSupplementaires
+    totalEcartAnnee += heuresSupplementaires;
+    const totalClassAnnee = totalEcartAnnee >= 0 ? 'ecart-positif' : 'ecart-negatif';
+    totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${totalEcartAnnee >= 0 ? '+' : ''}${totalEcartAnnee.toFixed(2)}</span>`;
     // Ajout des listeners pour les boutons supprimer
     document.querySelectorAll('.btn-supprimer').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -1328,6 +1345,7 @@ initialiserJoursTravail();
 document.addEventListener('DOMContentLoaded', function() {
     // --- Gestion du modal de menu ---
     safeAddEventListener('btn-menu', 'click', function() {
+        fermerTousLesModals();
         const menuModalBg = document.getElementById('menu-modal-bg');
         if (menuModalBg) menuModalBg.style.display = 'flex';
     });
@@ -1345,6 +1363,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (menuParametres && parametresModalBg && parametresModalClose && parametresAnnuler) {
         // Ouvrir le modal des paramètres
         safeAddEventListener('menu-parametres', 'click', function() {
+            fermerTousLesModals();
             // Pré-remplir les champs avec les valeurs actuelles
             const paramHeuresJour = document.getElementById('param-heures-jour');
             const paramPauseOfferte = document.getElementById('param-pause-offerte');
@@ -2670,3 +2689,10 @@ safeAddEventListener('menu-modal-close', 'click', function() {
     if (menuModalBg) menuModalBg.style.display = 'none';
 });
 // ... Répéter pour tous les autres boutons et modals du projet ...
+
+// Fonction utilitaire pour fermer tous les modals
+function fermerTousLesModals() {
+    document.querySelectorAll('.modal-bg').forEach(el => {
+        el.style.display = 'none';
+    });
+}
