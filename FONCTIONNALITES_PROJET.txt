@@ -1,0 +1,178 @@
+# Spécification fonctionnelle exhaustive du projet horaire
+
+## 1. Modules principaux
+
+### Module 1 : Calculette de départ/arrivée
+- Saisie de l'heure d'arrivée (HH:MM ou HH:MM:SS)
+- Saisie des pauses matin (début/fin ou durée)
+- Saisie des pauses midi (début/fin ou durée)
+- Saisie de l'heure de départ
+- Calcul automatique de l'heure de départ ou d'arrivée selon les champs remplis
+- Mise en forme automatique des horaires (ex : 6 devient 06:00)
+- Indicateur si hors plage horaire paramétrée
+
+### Module 2 : Simulateur journée
+- Saisie de l'heure d'arrivée
+- Saisie des pauses matin (début/fin ou durée)
+- Saisie des pauses midi (début/fin ou durée)
+- Saisie de l'heure de départ
+- Calcul automatique de la durée de pause
+- Affichage des heures supplémentaires en fonction des saisies
+- Mise en forme automatique des horaires
+
+### Module 3 : Calculette pause
+- Ajout/suppression dynamique de lignes de pause (début/fin)
+- Numérotation automatique des pauses
+- Calcul du total des pauses (HH:MM et x,xx)
+- Affichage du delta par rapport au paramètre temps de pause
+- Mise en forme conditionnelle du delta (positif/negatif)
+
+### Module 4 : Convertisseur HH:MM <-> décimal
+- Conversion d'une valeur horaire HH:MM ou HH:MM:SS en décimal (x,xx)
+- Conversion d'une valeur décimale en horaire HH:MM ou HH:MM:SS
+- Conversion uniquement à la sortie du champ (blur)
+- Adaptation dynamique au format horaire choisi (avec ou sans secondes)
+
+### Module 5 : Addition/Soustraction d'horaires
+- Ajout/suppression dynamique de lignes
+- Pour chaque ligne : choix entre addition et soustraction (+/-)
+- Saisie d'une valeur horaire (HH:MM ou HH:MM:SS)
+- Calcul du total (HH:MM ou HH:MM:SS et x,xx)
+- Calcul uniquement à la sortie du champ (blur)
+- Boutons + et - visuellement sélectionnés
+- Bouton + à droite pour ajouter une ligne sous la ligne courante
+- Bouton poubelle pour supprimer une ligne
+- Champs horaires adaptatifs selon le format global
+
+### Module jours saisis
+- Tableau listant chaque jour saisi
+- Colonnes : Date, Arrivée, Midi, Pause, Départ, Heures travaillées, Écart, Actions
+- Affichage du cumul des pauses (hors midi)
+- Affichage des heures travaillées (HH:MM et x,xx)
+- Affichage de l'écart (HH:MM et x,xx)
+- Tri par date
+- Mise en forme conditionnelle de l'écart (rouge si négatif, vert si positif, noir si nul)
+- Bouton pour supprimer une entrée
+
+### Module paramètres
+- Plages horaires paramétrables (arrivée, midi, départ)
+- Jours de travail sélectionnables (lundi à dimanche)
+- Heures à faire par jour (nombre et HH:MM)
+- Heures supplémentaires paramétrables
+- Temps de pause offert (en minutes)
+- Temps minimal de pause midi (en minutes)
+- Interrupteur pour choisir le format horaire global (HH:MM ou HH:MM:SS)
+- Application dynamique du format à tous les champs horaires
+
+### Module vacances
+- Gestion des vacances sur l'année
+- Sélection du type (congés payés, RTT)
+- Sélection de l'année
+- Visualisation du calendrier annuel
+- Boutons pour poser des congés, RTT, jours fériés, jours rattrapés
+
+### Module import/export
+- Export Excel de l'année complète
+- Export Excel du mois affiché
+- Import de fichier Excel (format compatible)
+- Sauvegarde/restauration automatique des champs et paramètres via localStorage
+
+## 2. Calculs et conversions
+- Conversion HH:MM ou HH:MM:SS <-> minutes
+- Conversion minutes <-> HH:MM ou HH:MM:SS
+- Conversion HH:MM ou HH:MM:SS <-> décimal (x,xx)
+- Calcul du total de pauses (somme des intervalles)
+- Calcul des heures travaillées (arrivée, pauses, départ)
+- Calcul de l'écart par rapport à la norme
+- Calcul des heures supplémentaires
+- Calcul du delta de pause par rapport au minimum paramétré
+- Prise en compte des formats horaires selon le paramètre global
+
+## 3. Ergonomie et comportements
+- Mise en forme automatique des horaires à la saisie
+- Calculs déclenchés uniquement à la sortie du champ (blur) pour éviter les incohérences
+- Champs horaires adaptatifs en largeur selon le format (plus large en HH:MM:SS)
+- Ajout/suppression dynamique de lignes dans les modules concernés
+- Boutons d'action clairs et accessibles (+, -, poubelle)
+- Affichage conditionnel et indicateurs visuels selon les cas (plages horaires, delta, etc.)
+
+## 4. Sauvegarde et restauration
+- Sauvegarde automatique des paramètres et des champs dans le localStorage
+- Restauration automatique à l'ouverture de la page
+- Import/export des données via Excel
+
+## 5. Divers et évolutions prévues
+- Mode RHT (gestion des heures de réduction du temps de travail)
+- Graphiques d'évolution des heures supplémentaires (par semaine, mois, année)
+- Statistiques sur les jours travaillés, heures sup, etc.
+- Système de compte/utilisateur (prévu)
+- Possibilité d'ajouter des pauses supplémentaires dans tous les outils de calculs et le calendrier
+- Compteur d'heures de pause total (midi et autres)
+
+## 6. Spécifications d'interface utilisateur (UX/UI)
+
+### Principes généraux
+- Interface claire, épurée, accessible sur desktop.
+- Modules présentés dans des encadrés à bords arrondis, ombrés, espacés.
+- Les modules 4 (convertisseur) et 5 (addition/soustraction) sont superposés dans la même colonne, chacun dans son propre encadré.
+- Les champs horaires sont toujours alignés, de largeur adaptée au format (voir plus bas).
+
+### Champs horaires
+- Saisie au format HH:MM ou HH:MM:SS selon le paramètre global.
+- Largeur dynamique :
+    - HH:MM : 54px
+    - HH:MM:SS : 66px
+- Placeholder dynamique selon le format.
+- Mise en forme automatique à la saisie (ex : 6 devient 06:00).
+- Calculs déclenchés uniquement à la sortie du champ (événement 'blur'), jamais à chaque frappe, pour éviter les incohérences.
+- Validation implicite : les valeurs invalides (ex : 16:89) ne sont pas prises en compte tant que le champ n'est pas quitté.
+
+### Boutons et interactions
+- **Boutons d'ajout (+)** :
+    - Dans les modules à lignes dynamiques (pauses, addition/soustraction), un bouton + rond est placé à droite de chaque champ pour ajouter une ligne juste en dessous.
+    - Style : rond, fond clair, bord gris, icône +, taille adaptée (28px).
+- **Boutons de suppression (poubelle)** :
+    - À droite de chaque ligne (sauf la première si une seule ligne), bouton avec icône poubelle pour supprimer la ligne.
+    - Style : rond, fond clair, icône 🗑️, taille adaptée.
+- **Boutons d'opération (+ et -)** (module addition/soustraction) :
+    - Deux boutons ronds à gauche de chaque champ horaire, pour choisir entre addition et soustraction.
+    - Style :
+        - + : rond, fond bleu si sélectionné, texte blanc ; sinon fond blanc, texte bleu, bord bleu.
+        - - : rond, fond rouge si sélectionné, texte blanc ; sinon fond blanc, texte rouge, bord rouge.
+    - Le bouton sélectionné est visuellement mis en avant.
+    - Un seul bouton sélectionné par ligne.
+- **Interrupteur format horaire** :
+    - Dans les paramètres, un switch (checkbox stylisée) permet de basculer entre HH:MM et HH:MM:SS.
+    - Le label à droite du switch affiche le format sélectionné.
+    - Le changement de format adapte dynamiquement tous les champs horaires de l'application (placeholder, largeur, valeur).
+
+### Tableaux et listes
+- Les tableaux (jours saisis, pauses, etc.) sont scrollables si besoin, avec en-têtes fixes.
+- Les colonnes sont centrées, les totaux et écarts sont mis en valeur (gras, couleur selon le cas).
+- Les boutons d'action (supprimer, ajouter) sont toujours visibles et accessibles.
+
+### Ergonomie et accessibilité
+- Tous les boutons sont accessibles au clavier (tabulation).
+- Les champs horaires sont accessibles, avec indication claire du format attendu.
+- Les actions critiques (suppression de toutes les entrées, etc.) sont confirmées par un modal.
+- Les couleurs utilisées sont contrastées et adaptées à la lisibilité.
+
+### Comportements dynamiques
+- Ajout/suppression de lignes sans rechargement de la page.
+- Calculs et conversions toujours déclenchés à la sortie du champ (blur), jamais à chaque frappe.
+- Les valeurs sont sauvegardées dans le localStorage à chaque modification.
+- Les modules s'adaptent automatiquement au format horaire choisi.
+
+### Exemples de comportements attendus
+- Dans le module addition/soustraction :
+    - Cliquer sur + à droite d'une ligne ajoute une nouvelle ligne juste en dessous.
+    - Cliquer sur la poubelle supprime la ligne.
+    - Cliquer sur + ou - à gauche sélectionne l'opération pour la ligne (visuel mis à jour).
+    - Le total n'est recalculé qu'après avoir quitté le champ horaire.
+- Dans le convertisseur :
+    - La conversion ne se fait qu'après avoir quitté le champ.
+    - Le format du champ s'adapte à l'interrupteur global.
+
+---
+
+Ce document décrit non seulement toutes les fonctionnalités et calculs, mais aussi l'intégralité des choix d'interface, de comportements et d'ergonomie, afin que n'importe quel développeur puisse reproduire fidèlement le projet, tant sur le fond que sur la forme. 
