@@ -2902,6 +2902,7 @@ function fermerTousLesModals() {
     document.querySelectorAll('.modal-bg').forEach(el => {
         el.style.display = 'none';
     });
+<<<<<<< HEAD
 }
 
 // ... existing code ...
@@ -3011,3 +3012,6 @@ function updateCompteursAbsences() {
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
 }
 // ... existing code ...
+=======
+}
+>>>>>>> parent of 7ba0d99 (v0.2.5)
