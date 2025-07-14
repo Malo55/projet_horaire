@@ -96,6 +96,12 @@ body {
     font-weight: bold;
     border: 2px solid #0288d1 !important;
 }
+.jour-rht {
+    background: #64b5f6 !important;
+    color: #0d47a1 !important;
+    font-weight: bold;
+    border: 2px solid #1565c0 !important;
+}
 #calendrier-vacances {
     display: flex;
     flex-wrap: wrap;
@@ -198,7 +204,7 @@ body {
   border: none !important;
 }
 /* Les jours RTT et vacances gardent la même taille */
-.jour-vacances, .jour-rtt {
+.jour-vacances, .jour-rtt, .jour-rht {
   box-sizing: border-box;
 }
 
