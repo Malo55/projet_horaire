@@ -2,7 +2,7 @@
 
 
 À AJOUTER :
-Un switch pour afficher les heures en HH:MM:SS ou en HH:MM que pour les champs du calendrier
+mode HH:MM:SS non editable dans les champs
 
 Un mode RHT
 Un affichage du temps de pause matin et midi
