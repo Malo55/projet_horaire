@@ -2902,7 +2902,7 @@ function fermerTousLesModals() {
     document.querySelectorAll('.modal-bg').forEach(el => {
         el.style.display = 'none';
     });
-<<<<<<< HEAD
+
 }
 
 // ... existing code ...
