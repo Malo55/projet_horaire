@@ -212,6 +212,7 @@ function renderCalendrier(month, year) {
         if (td.textContent && !isNaN(td.textContent)) {
             if(isJourVacances(dateStr)) td.classList.add('jour-vacances');
             if(isJourRTT(dateStr)) td.classList.add('jour-rtt');
+            if(isJourRHT(dateStr)) td.classList.add('jour-rht');
         }
         
         // Gestion des jours non travaillés (grisés)
@@ -914,17 +915,34 @@ if (vacPrevYear && vacNextYear && vacAnneeSpan) {
 let modeVac = 'conge';
 const btnModeConge = document.getElementById('mode-conge');
 const btnModeRTT = document.getElementById('mode-rtt');
+const btnModeRHT = document.getElementById('mode-rht');
+let modeVacances = 'conge'; // 'conge', 'rtt', 'rht'
+let compteurRHT = 0;
+if (localStorage.getItem('compteurRHT')) compteurRHT = parseInt(localStorage.getItem('compteurRHT'));
 
-btnModeConge.addEventListener('click', function() {
-    modeVac = 'conge';
-    btnModeConge.classList.add('selected');
-    btnModeRTT.classList.remove('selected');
-});
-btnModeRTT.addEventListener('click', function() {
-    modeVac = 'rtt';
-    btnModeRTT.classList.add('selected');
-    btnModeConge.classList.remove('selected');
-});
+function updateVacModeButtons() {
+    if (btnModeConge) btnModeConge.classList.toggle('selected', modeVacances === 'conge');
+    if (btnModeRTT) btnModeRTT.classList.toggle('selected', modeVacances === 'rtt');
+    if (btnModeRHT) btnModeRHT.classList.toggle('selected', modeVacances === 'rht');
+}
+if (btnModeConge) btnModeConge.onclick = function() { modeVacances = 'conge'; updateVacModeButtons(); };
+if (btnModeRTT) btnModeRTT.onclick = function() { modeVacances = 'rtt'; updateVacModeButtons(); };
+if (btnModeRHT) btnModeRHT.onclick = function() { modeVacances = 'rht'; updateVacModeButtons(); };
+
+// Lors de la validation d'un jour RHT, incrémenter le compteur
+const btnVacValider = document.getElementById('vacances-modal-valider');
+if (btnVacValider) {
+    btnVacValider.addEventListener('click', function() {
+        if (modeVacances === 'rht') {
+            compteurRHT++;
+            localStorage.setItem('compteurRHT', compteurRHT);
+        }
+        // ... logique existante pour les autres modes ...
+    });
+}
+// Pour affichage du compteur (à placer où tu veux dans l'UI)
+// Exemple : document.getElementById('compteur-rht').textContent = compteurRHT;
+// ... existing code ...
 
 vacancesModalValider.addEventListener('click', function() {
     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
@@ -933,6 +951,7 @@ vacancesModalValider.addEventListener('click', function() {
 });
 
 function renderCalendrierVacances(annee) {
+    let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
     calendrierVacancesDiv.innerHTML = '';
     for (let month = 0; month < 12; month++) {
         const moisDiv = document.createElement('div');
@@ -989,6 +1008,7 @@ function renderCalendrierVacances(annee) {
             } else {
                 if(joursVacances.includes(dateStr)) td.classList.add('jour-vacances');
                 if(joursRTT.includes(dateStr)) td.classList.add('jour-rtt');
+                if(joursRHT.includes(dateStr)) td.classList.add('jour-rht');
                 td.onclick = () => {
                     if(joursVacances.includes(dateStr)) {
                         joursVacances = joursVacances.filter(d => d !== dateStr);
@@ -996,13 +1016,30 @@ function renderCalendrierVacances(annee) {
                     } else if(joursRTT.includes(dateStr)) {
                         joursRTT = joursRTT.filter(d => d !== dateStr);
                         td.classList.remove('jour-rtt');
+                    } else if(joursRHT.includes(dateStr)) {
+                        joursRHT = joursRHT.filter(d => d !== dateStr);
+                        td.classList.remove('jour-rht');
+                        localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
+                        updateCompteursAbsences();
+                        afficherJours();
+                        return;
                     } else {
-                        if(modeVac === 'conge') {
+                        if(modeVacances === 'conge') {
                             joursVacances.push(dateStr);
                             td.classList.add('jour-vacances');
-                        } else {
+                        } else if (modeVacances === 'rtt') {
                             joursRTT.push(dateStr);
                             td.classList.add('jour-rtt');
+                        } else if (modeVacances === 'rht') {
+                            let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+                            if (!joursRHT.includes(dateStr)) {
+                                joursRHT.push(dateStr);
+                                td.classList.add('jour-rht');
+                            } else {
+                                joursRHT = joursRHT.filter(d => d !== dateStr);
+                                td.classList.remove('jour-rht');
+                            }
+                            localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
                         }
                     }
                     
@@ -1012,7 +1049,9 @@ function renderCalendrierVacances(annee) {
                     
                     // Mettre à jour le total d'heures supplémentaires en temps réel
                     afficherJours();
-                };
+                    updateCompteursAbsences();
+                    return;
+                }
             }
             row.appendChild(td);
         }
@@ -1028,6 +1067,11 @@ function isJourVacances(dateStr) {
 }
 function isJourRTT(dateStr) {
     return joursRTT.includes(dateStr);
+}
+function isJourRHT(dateStr) {
+    // On considère qu'un jour RHT est un jour où le modeVacances était 'rht' lors de la pose
+    let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+    return joursRHT.includes(dateStr);
 }
 // On modifie renderCalendrier pour désactiver le clic sur les jours de vacances/RTT
 const oldRenderCalendrier = renderCalendrier;
@@ -1050,6 +1094,9 @@ renderCalendrier = function(month, year) {
                 td.onclick = null;
             } else if(isJourRTT(dateStr)) {
                 td.classList.add('jour-rtt');
+                td.onclick = null;
+            } else if(isJourRHT(dateStr)) {
+                td.classList.add('jour-rht');
                 td.onclick = null;
             }
             day++;
@@ -1702,10 +1749,50 @@ function calculerHeuresSupCalculette() {
     // Récupération des valeurs
     const arrivee = calcArrivee ? calcArrivee.value : '';
     const depart = calcDepart ? calcDepart.value : '';
-    const pause1Debut = calcPause1Debut ? calcPause1Debut.value : '';
-    const pause1Fin = calcPause1Fin ? calcPause1Fin.value : '';
-    const pauseMidiDebut = calcPauseDebut ? calcPauseDebut.value : '';
-    const pauseMidiFin = calcPauseFin ? calcPauseFin.value : '';
+    // Pause matin
+    let pause1DureeMin = null;
+    if (document.getElementById('calc-pause1-mode-duree')?.checked) {
+        const duree = document.getElementById('calc-pause1-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pause1DureeMin = hh * 60 + mm;
+        }
+    } else {
+        const pause1Debut = calcPause1Debut ? calcPause1Debut.value : '';
+        const pause1Fin = calcPause1Fin ? calcPause1Fin.value : '';
+        const toMinutes = (h) => {
+            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+            const [hh, mm] = h.split(':').map(Number);
+            return hh * 60 + mm;
+        };
+        const debutMin = toMinutes(pause1Debut);
+        const finMin = toMinutes(pause1Fin);
+        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+            pause1DureeMin = finMin - debutMin;
+        }
+    }
+    // Pause midi
+    let pauseMidiDureeMin = null;
+    if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
+        const duree = document.getElementById('calc-pause-midi-duree')?.value;
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            pauseMidiDureeMin = hh * 60 + mm;
+        }
+    } else {
+        const pauseMidiDebut = calcPauseDebut ? calcPauseDebut.value : '';
+        const pauseMidiFin = calcPauseFin ? calcPauseFin.value : '';
+        const toMinutes = (h) => {
+            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+            const [hh, mm] = h.split(':').map(Number);
+            return hh * 60 + mm;
+        };
+        const debutMin = toMinutes(pauseMidiDebut);
+        const finMin = toMinutes(pauseMidiFin);
+        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+            pauseMidiDureeMin = finMin - debutMin;
+        }
+    }
     // Fonctions utilitaires
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
@@ -1715,10 +1802,6 @@ function calculerHeuresSupCalculette() {
     // Conversion
     const arriveeMin = toMinutes(arrivee);
     const departMin = toMinutes(depart);
-    const pause1DebutMin = toMinutes(pause1Debut);
-    const pause1FinMin = toMinutes(pause1Fin);
-    const pauseMidiDebutMin = toMinutes(pauseMidiDebut);
-    const pauseMidiFinMin = toMinutes(pauseMidiFin);
     // Paramètres globaux
     let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
     let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
@@ -1726,19 +1809,18 @@ function calculerHeuresSupCalculette() {
     // Calcul
     if (
         arriveeMin === null || departMin === null ||
-        pauseMidiDebutMin === null || pauseMidiFinMin === null ||
-        pause1DebutMin === null || pause1FinMin === null
+        pauseMidiDureeMin === null || pause1DureeMin === null
     ) {
         calcHeuresSup.textContent = '';
         return;
     }
     let dureeTravail = departMin - arriveeMin;
     // Pause midi (toujours déduite, au moins le minimum)
-    let pauseMidi = pauseMidiFinMin - pauseMidiDebutMin;
+    let pauseMidi = pauseMidiDureeMin;
     if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
     dureeTravail -= pauseMidi;
     // Pause matin : seul l'excédent > pause offerte est déduit
-    let pauseMatin = pause1FinMin - pause1DebutMin;
+    let pauseMatin = pause1DureeMin;
     if (pauseMatin > pauseOfferteVal) {
         dureeTravail -= (pauseMatin - pauseOfferteVal);
     }
@@ -2888,4 +2970,44 @@ function toFlexibleFormat(mins) {
 }
 // Remplacer les appels à toMinutes et toHHMM dans les modules concernés par toMinutesFlexible et toFlexibleFormat
 // ... (à faire dans les modules 4 et 5, et autres champs horaires si besoin) ...
+// ... existing code ...
+
+// ... existing code ...
+function isJourRHT(dateStr) {
+    // On considère qu'un jour RHT est un jour où le modeVacances était 'rht' lors de la pose
+    let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+    return joursRHT.includes(dateStr);
+}
+
+// On modifie ouvrirModal pour empêcher la saisie sur un jour RHT
+const oldOuvrirModal = ouvrirModal;
+ouvrirModal = function(dateStr = null) {
+    if (dateStr && (isJourVacances(dateStr) || isJourRTT(dateStr) || isJourRHT(dateStr))) {
+        return; // Ne pas ouvrir le modal pour les jours vacances, RTT ou RHT
+    }
+    oldOuvrirModal(dateStr);
+}
+// Lors de la pose d'un jour RHT dans le calendrier vacances, on l'ajoute à joursRHT
+// (à placer dans la logique de sélection du calendrier vacances)
+// ... existing code ...
+
+// ... existing code ...
+function updateCompteursAbsences() {
+    const compteurVac = document.getElementById('compteur-vacances');
+    const compteurRTT = document.getElementById('compteur-rtt');
+    const compteurRHT = document.getElementById('compteur-rht');
+    const compteurRTTHeures = document.getElementById('compteur-rtt-heures');
+    const compteurRHTHeures = document.getElementById('compteur-rht-heures');
+    let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
+    let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
+    let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+    // Heures à faire par jour (en minutes)
+    let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60;
+    let heuresJour = minutesJour / 60;
+    if (compteurVac) compteurVac.textContent = joursVacances.length;
+    if (compteurRTT) compteurRTT.textContent = joursRTT.length;
+    if (compteurRHT) compteurRHT.textContent = joursRHT.length;
+    if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
+    if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
+}
 // ... existing code ...

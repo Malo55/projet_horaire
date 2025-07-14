@@ -2,13 +2,9 @@
 
 
 À AJOUTER :
-Un switch pour afficher les heures en HH:MM:SS ou en HH:MM que pour les champs du calendrier
 
 Un mode RHT
-Un affichage du temps de pause matin et midi
-Peut etre un ajout d'un + pour ajouter autant de pause que necessaire dans les outils de calculs et de calendrier
-Ajouter un compteur d'heure de pause de midi et/ou pause supplémentaire total
-Sauvegarde / Import des données via fichier txt ou xls dans le projet local
+
 Systeme de compte / sauvegarde de données
 
 
