@@ -3010,7 +3010,5 @@ function updateCompteursAbsences() {
     if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
 }
-// ... existing code ...
-=======
 }
->>>>>>> parent of 7ba0d99 (v0.2.5)
+
