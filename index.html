@@ -66,6 +66,12 @@
         <div id="calendrier"></div>
         <button id="btn-vacances" style="position: absolute; top: 0; right: 0; height: 40px;">Vacances</button>
       </div>
+      <div id="compteurs-absences" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; min-width: 200px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; justify-content: flex-start;">
+        <h4 style="margin:0 0 8px 0;">Compteurs d'absences</h4>
+        <div>CP : <span id="compteur-vacances">0</span></div>
+        <div>RTT : <span id="compteur-rtt">0</span> (<span id="compteur-rtt-heures">0,00</span> h)</div>
+        <div>RHT : <span id="compteur-rht">0</span> (<span id="compteur-rht-heures">0,00</span> h)</div>
+      </div>
     </div>
     <div id="modules-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; justify-content: center; margin-bottom: 24px;">
       <div id="calculateur-horaire" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px;">
@@ -288,10 +294,12 @@
             <div style="display:flex; gap:12px; margin-bottom:8px; justify-content:center;">
                 <button id="mode-conge" class="btn-mode-vac selected">Congés payés</button>
                 <button id="mode-rtt" class="btn-mode-vac">RTT</button>
+                <button id="mode-rht" class="btn-mode-vac">RHT</button>
             </div>
             <div style="margin-bottom:8px; font-size:0.95em;">
                 <span style="display:inline-block;width:18px;height:18px;background:#ffe082;border:2px solid #ffb300;margin-right:4px;vertical-align:middle;"></span> Congé payé
                 <span style="display:inline-block;width:18px;height:18px;background:#81d4fa;border:2px solid #0288d1;margin:0 4px 0 16px;vertical-align:middle;"></span> RTT
+                <span style="display:inline-block;width:18px;height:18px;background:#64b5f6;border:2px solid #1565c0;margin:0 4px 0 16px;vertical-align:middle;"></span> RHT
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:center;">
                 <button id="vac-prev-year">&#8592;</button>

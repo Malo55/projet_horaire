@@ -96,6 +96,12 @@ body {
     font-weight: bold;
     border: 2px solid #0288d1 !important;
 }
+.jour-rht {
+    background: #8e24aa !important;
+    color: #fff !important;
+    font-weight: bold;
+    border: 2px solid #4a148c !important;
+}
 #calendrier-vacances {
     display: flex;
     flex-wrap: wrap;
