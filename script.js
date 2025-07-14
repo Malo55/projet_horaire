@@ -354,16 +354,22 @@ function afficherJours() {
         const [y, m] = dateStr.split('-');
         return y === anneeStr && m === moisStr;
     }));
+    // On crée un Set de tous les jours RHT du mois affiché (jours RHT inclus même sans saisie d'horaire)
+    const joursRHTSet = new Set(joursRHT.filter(dateStr => {
+        const [y, m] = dateStr.split('-');
+        return y === anneeStr && m === moisStr;
+    }));
     // On affiche les jours saisis du mois affiché
     joursAffiches.forEach((jour, idx) => {
         const isVac = isJourVacances(jour.date);
         const isRtt = isJourRTT(jour.date);
+        const isRht = isJourRHT(jour.date);
         const isJourTravailleJour = isJourTravaille(jour.date);
         const tr = document.createElement('tr');
         // Calcul dynamique des heures travaillées et de l'écart
-        let heuresTravDyn = (isVac || isRtt) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
-        let ecartDyn = (isVac || isRtt) ? 0 : heuresTravDyn - heuresJour;
-        let ecartAfficheDyn = (isVac || isRtt) ? (isRtt ? '-' : '') + heuresJour.toFixed(2) : (ecartDyn >= 0 ? '+' : '') + ecartDyn.toFixed(2);
+        let heuresTravDyn = (isVac || isRtt || isRht) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+        let ecartDyn = (isVac || isRtt || isRht) ? 0 : heuresTravDyn - heuresJour;
+        let ecartAfficheDyn = (isVac || isRtt || isRht) ? ((isRtt || isRht) ? '-' : '') + heuresJour.toFixed(2) : (ecartDyn >= 0 ? '+' : '') + ecartDyn.toFixed(2);
         const ecartClassDyn = ecartDyn >= 0 ? 'ecart-positif' : 'ecart-negatif';
         totalEcart += ecartDyn;
         // Pause midi fusionnée
@@ -386,7 +392,7 @@ function afficherJours() {
         // Heures travaillées aussi en HH:MM
         const heuresTravHHMM = fractionToHHMM(heuresTravDyn);
         // Ajouter une classe pour griser les jours non travaillés
-        const rowClass = !isJourTravailleJour && !isVac && !isRtt ? 'jour-non-travaille-row' : '';
+        const rowClass = !isJourTravailleJour && !isVac && !isRtt && !isRht ? 'jour-non-travaille-row' : '';
         // Calcul du total des pauses prises (hors pause midi)
         let totalPause = totalPausesDyn(jour);
         let totalPauseHHMM = `${String(Math.floor(totalPause/60)).padStart(2,'0')}:${String(totalPause%60).padStart(2,'0')}`;
@@ -422,7 +428,7 @@ function afficherJours() {
             <td>${midiCell}</td>
             <td class="pause-cell">${pauseCell}</td>
             <td>${jour.depart}</td>
-            <td>${(isVac || isRtt) ? '0.00' : heuresTravDyn.toFixed(2)}<br><span style="font-size:0.95em;color:#555;">${heuresTravHHMM}</span></td>
+            <td>${(isVac || isRtt || isRht) ? '0.00' : heuresTravDyn.toFixed(2)}<br><span style="font-size:0.95em;color:#555;">${heuresTravHHMM}</span></td>
             <td class="${ecartClassDyn}">${ecartAfficheDyn}<br><span style="font-size:0.95em; color:${ecartHHMMColor}; font-weight:normal;">${ecartHHMM}</span></td>
             <td><button class="btn-supprimer" data-idx="${jours.indexOf(jour)}">Supprimer</button></td>
         `;
@@ -434,6 +440,10 @@ function afficherJours() {
     });
     // On ajoute la déduction RTT pour les jours RTT sans saisie d'horaire
     joursRTTSet.forEach(dateStr => {
+        totalEcart -= heuresJour;
+    });
+    // On ajoute la déduction RHT pour les jours RHT sans saisie d'horaire
+    joursRHTSet.forEach(dateStr => {
         totalEcart -= heuresJour;
     });
     
@@ -448,15 +458,20 @@ function afficherJours() {
     let totalEcartAnnee = 0;
     // On prend en compte les RTT de l'année
     const joursRTTAnnee = joursRTT.filter(dateStr => dateStr.startsWith(anneeStrAnnee + '-'));
+    // On prend en compte les RHT de l'année
+    const joursRHTAnnee = joursRHT.filter(dateStr => dateStr.startsWith(anneeStrAnnee + '-'));
     joursAnnee.forEach(jour => {
         const isVac = isJourVacances(jour.date);
         const isRtt = isJourRTT(jour.date);
-        let heuresTravDyn = (isVac || isRtt) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
-        let ecartDyn = (isVac || isRtt) ? 0 : heuresTravDyn - heuresJour;
+        const isRht = isJourRHT(jour.date);
+        let heuresTravDyn = (isVac || isRtt || isRht) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+        let ecartDyn = (isVac || isRtt || isRht) ? 0 : heuresTravDyn - heuresJour;
         totalEcartAnnee += ecartDyn;
     });
     // Déduction RTT sans saisie d'horaire
     totalEcartAnnee -= joursRTTAnnee.length * heuresJour;
+    // Déduction RHT sans saisie d'horaire
+    totalEcartAnnee -= joursRHTAnnee.length * heuresJour;
     // Ajout du paramètre heuresSupplementaires
     totalEcartAnnee += heuresSupplementaires;
     const totalClassAnnee = totalEcartAnnee >= 0 ? 'ecart-positif' : 'ecart-negatif';
@@ -914,21 +929,31 @@ if (vacPrevYear && vacNextYear && vacAnneeSpan) {
 let modeVac = 'conge';
 const btnModeConge = document.getElementById('mode-conge');
 const btnModeRTT = document.getElementById('mode-rtt');
+const btnModeRHT = document.getElementById('mode-rht');
 
 btnModeConge.addEventListener('click', function() {
     modeVac = 'conge';
     btnModeConge.classList.add('selected');
     btnModeRTT.classList.remove('selected');
+    btnModeRHT.classList.remove('selected');
 });
 btnModeRTT.addEventListener('click', function() {
     modeVac = 'rtt';
     btnModeRTT.classList.add('selected');
     btnModeConge.classList.remove('selected');
+    btnModeRHT.classList.remove('selected');
+});
+btnModeRHT.addEventListener('click', function() {
+    modeVac = 'rht';
+    btnModeRHT.classList.add('selected');
+    btnModeConge.classList.remove('selected');
+    btnModeRTT.classList.remove('selected');
 });
 
 vacancesModalValider.addEventListener('click', function() {
     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
+    localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
     vacancesModalBg.style.display = 'none';
 });
 
@@ -989,6 +1014,7 @@ function renderCalendrierVacances(annee) {
             } else {
                 if(joursVacances.includes(dateStr)) td.classList.add('jour-vacances');
                 if(joursRTT.includes(dateStr)) td.classList.add('jour-rtt');
+                if(joursRHT.includes(dateStr)) td.classList.add('jour-rht');
                 td.onclick = () => {
                     if(joursVacances.includes(dateStr)) {
                         joursVacances = joursVacances.filter(d => d !== dateStr);
@@ -996,21 +1022,24 @@ function renderCalendrierVacances(annee) {
                     } else if(joursRTT.includes(dateStr)) {
                         joursRTT = joursRTT.filter(d => d !== dateStr);
                         td.classList.remove('jour-rtt');
+                    } else if(joursRHT.includes(dateStr)) {
+                        joursRHT = joursRHT.filter(d => d !== dateStr);
+                        td.classList.remove('jour-rht');
                     } else {
                         if(modeVac === 'conge') {
                             joursVacances.push(dateStr);
                             td.classList.add('jour-vacances');
-                        } else {
+                        } else if(modeVac === 'rtt') {
                             joursRTT.push(dateStr);
                             td.classList.add('jour-rtt');
+                        } else if(modeVac === 'rht') {
+                            joursRHT.push(dateStr);
+                            td.classList.add('jour-rht');
                         }
                     }
-                    
-                    // Sauvegarder les données dans le localStorage
                     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
                     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
-                    
-                    // Mettre à jour le total d'heures supplémentaires en temps réel
+                    localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
                     afficherJours();
                 };
             }
@@ -1029,11 +1058,14 @@ function isJourVacances(dateStr) {
 function isJourRTT(dateStr) {
     return joursRTT.includes(dateStr);
 }
-// On modifie renderCalendrier pour désactiver le clic sur les jours de vacances/RTT
+function isJourRHT(dateStr) {
+    return joursRHT.includes(dateStr);
+}
+// On modifie renderCalendrier pour désactiver le clic sur les jours de vacances/RTT/RHT
 const oldRenderCalendrier = renderCalendrier;
 renderCalendrier = function(month, year) {
     oldRenderCalendrier(month, year);
-    // Ajout de la classe jour-vacances/jour-rtt sur le calendrier principal
+    // Ajout de la classe jour-vacances/jour-rtt/jour-rht sur le calendrier principal
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     let dayOfWeek = (firstDay.getDay() + 6) % 7;
@@ -1050,6 +1082,9 @@ renderCalendrier = function(month, year) {
                 td.onclick = null;
             } else if(isJourRTT(dateStr)) {
                 td.classList.add('jour-rtt');
+                td.onclick = null;
+            } else if(isJourRHT(dateStr)) {
+                td.classList.add('jour-rht');
                 td.onclick = null;
             }
             day++;
