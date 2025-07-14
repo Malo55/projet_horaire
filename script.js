@@ -3010,5 +3010,4 @@ function updateCompteursAbsences() {
     if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
 }
-}
 
