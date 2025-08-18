@@ -76,6 +76,12 @@
     <div id="modules-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; justify-content: center; margin-bottom: 24px;">
       <div id="calculateur-horaire" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px;">
         <h3 style="margin-top:0;">Module 1 : calculette de départ/arrivée</h3>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="calc-rht-mode">
+            <span>RHT</span>
+          </label>
+        </div>
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
             <label for="calc-arrivee" style="min-width:90px;">Arrivée :</label>
             <input type="text" id="calc-arrivee" placeholder="HH:MM" style="width:80px;">
@@ -101,7 +107,7 @@
             <input type="text" id="calc-pause1-duree" placeholder="Durée" style="width:70px;" inputmode="numeric" autocomplete="off">
           </div>
         </div>
-        <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
+        <div id="calc-midi-group" style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
           <div style="display:flex; align-items:center; gap:12px;">
             <label for="calc-pause-debut" style="min-width:90px;">Pause midi :</label>
             <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
@@ -130,8 +136,14 @@
         </div>
         <div id="calc-info" style="margin-top:10px; font-size:0.95em; color:#555;"></div>
       </div>
-      <div id="zero-module" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px;">
+      <div id="zero-module" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column;">
         <h3 style="margin-top:0;">Module 2 : simulateur journée</h3>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="zero-rht-mode">
+            <span>RHT</span>
+          </label>
+        </div>
         <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
           <label for="zero-arrivee" style="min-width:90px;">Arrivée :</label>
           <input type="text" id="zero-arrivee" placeholder="HH:MM" style="width:80px;" inputmode="numeric" autocomplete="off">
@@ -157,7 +169,7 @@
             <input type="text" id="zero-pause1-duree" placeholder="Durée" style="width:70px;" inputmode="numeric" autocomplete="off">
           </div>
         </div>
-        <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
+        <div id="zero-midi-group" style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
           <div style="display:flex; align-items:center; gap:12px;">
             <label for="zero-pause-debut" style="min-width:90px;">Pause midi :</label>
             <label style="display:flex; align-items:center; gap:4px; font-size:0.95em; cursor:pointer;">
@@ -173,6 +185,7 @@
             <input type="text" id="zero-pause-debut" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
             <span>à</span>
             <input type="text" id="zero-pause-fin" placeholder="HH:MM" style="width:60px;" inputmode="numeric" autocomplete="off">
+            <span style="font-size:1.2em; margin-left:6px; display:flex; align-items:center; height:32px; visibility:hidden;">&nbsp;</span>
           </div>
           <div id="zero-pause-midi-duree-field" style="display:none; gap:12px; align-items:center; margin-left:102px;">
             <input type="text" id="zero-pause-midi-duree" placeholder="Durée" style="width:70px;" inputmode="numeric" autocomplete="off">

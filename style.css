@@ -340,3 +340,26 @@ body {
   border: 2px solid #2e7d32 !important;
   color: #1b5e20 !important;
 } 
+#calculateur-horaire label[for="calc-arrivee"],
+#zero-module label[for="zero-arrivee"],
+#calculateur-horaire label[for="calc-pause-debut"],
+#zero-module label[for="zero-pause-debut"],
+#calculateur-horaire label[for="calc-depart"],
+#zero-module label[for="zero-depart"] {
+  min-width: 90px;
+}
+#calculateur-horaire input[type="text"],
+#zero-module input[type="text"] {
+  width: 80px;
+}
+/* Champs de pause détaillés */
+#calculateur-horaire #calc-pause1-debut,
+#calculateur-horaire #calc-pause1-fin,
+#zero-module #zero-pause1-debut,
+#zero-module #zero-pause1-fin,
+#calculateur-horaire #calc-pause-debut,
+#calculateur-horaire #calc-pause-fin,
+#zero-module #zero-pause-debut,
+#zero-module #zero-pause-fin {
+  width: 60px;
+} 

@@ -948,6 +948,10 @@ vacancesModalValider.addEventListener('click', function() {
     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
     vacancesModalBg.style.display = 'none';
+    // Rafraîchit le calendrier principal et les compteurs après validation
+    afficherJours();
+    updateCompteursAbsences();
+    majCalendrier();
 });
 
 function renderCalendrierVacances(annee) {
@@ -1050,6 +1054,7 @@ function renderCalendrierVacances(annee) {
                     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
                     afficherJours();
                     updateCompteursAbsences();
+                    majCalendrier();
                     return;
                 }
             }
@@ -2496,19 +2501,38 @@ safeAddEventListener('pause3-reset', 'click', function() {
     if (convDecimal && localStorage.getItem('convertisseur_decimal')) convDecimal.value = localStorage.getItem('convertisseur_decimal');
     // Formatage HH:MM
     if (convHHMM) {
-        formatHeureInputPause3(convHHMM);
+        // Ne pas appliquer le formateur strict HH:MM ici; on accepte HH:MM et HH:MM:SS,ss
         safeAddEventListener('conv-hhmm', 'input', function() {
-            // Conversion HH:MM -> décimal (ne rien faire ici)
             localStorage.setItem('convertisseur_hhmm', convHHMM.value);
         });
         safeAddEventListener('conv-hhmm', 'blur', function() {
-            let v = convHHMM.value;
+            const v = convHHMM.value.trim();
+            // Motifs acceptés: HH:MM ou HH:MM:SS,ss (ss = 2 décimales)
+            let dec = null;
             if (/^\d{2}:\d{2}$/.test(v)) {
                 const [h, m] = v.split(':').map(Number);
-                let dec = h + m/60;
+                dec = h + m/60;
                 convDecimal.value = dec.toFixed(2).replace('.', ',');
-                localStorage.setItem('convertisseur_decimal', convDecimal.value);
+                convHHMM.style.background = '';
+                convHHMM.style.width = '90px';
+            } else if (/^\d{2}:\d{2}:\d{2},\d{2}$/.test(v)) {
+                const [hh, mm, rest] = v.split(':');
+                const [ss, sfrac] = rest.split(',');
+                const h = parseInt(hh, 10) || 0;
+                const m = parseInt(mm, 10) || 0;
+                const s = parseInt(ss, 10) || 0;
+                const cs = parseInt(sfrac, 10) || 0; // centièmes de seconde
+                const totalSeconds = h*3600 + m*60 + s + cs/100;
+                dec = totalSeconds / 3600;
+                // Conserver plus de précision côté décimal
+                convDecimal.value = dec.toFixed(6).replace('.', ',');
+                convHHMM.style.background = '';
+                convHHMM.style.width = '160px';
+            } else {
+                // Format libre: ne rien effacer ni colorer en rouge ici
+                convHHMM.style.background = '';
             }
+            if (dec !== null) localStorage.setItem('convertisseur_decimal', convDecimal.value);
             localStorage.setItem('convertisseur_hhmm', convHHMM.value);
         });
     }
@@ -2518,14 +2542,51 @@ safeAddEventListener('pause3-reset', 'click', function() {
             localStorage.setItem('convertisseur_decimal', convDecimal.value);
         });
         safeAddEventListener('conv-decimal', 'blur', function() {
-            let v = convDecimal.value.replace(',', '.');
-            let dec = parseFloat(v);
-            if (!isNaN(dec)) {
-                let h = Math.floor(dec);
-                let m = Math.round((dec - h) * 60);
-                convHHMM.value = h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
+            let raw = convDecimal.value.trim();
+            if (!raw) return;
+            // Accepte ',' ou '.' et jusqu'à 6 décimales
+            const parts = raw.replace(',', '.').split('.');
+            const fracLen = parts[1] ? Math.min(6, parts[1].length) : 0;
+            const dec = parseFloat(parts.join('.') || '0');
+            if (isNaN(dec)) {
+                return;
+            }
+            const totalSecondsFloat = dec * 3600;
+            let hours = Math.floor(totalSecondsFloat / 3600);
+            let minutes = Math.floor((totalSecondsFloat % 3600) / 60);
+            let secondsFloat = totalSecondsFloat - hours * 3600 - minutes * 60;
+
+            // Ajuste l'affichage: par défaut HH:MM; si >2 décimales saisies, affiche HH:MM:SS,ss
+            if (fracLen > 2) {
+                // 2 décimales sur les secondes pour l'affichage (exigence 0.0008 -> 00:00:02,88)
+                let secondsFixed = Number(secondsFloat.toFixed(2));
+                // Gestion du report si 60.00
+                if (secondsFixed >= 60) {
+                    secondsFixed = 0;
+                    minutes += 1;
+                    if (minutes >= 60) {
+                        minutes = 0;
+                        hours += 1;
+                    }
+                }
+                const secInt = Math.floor(secondsFixed);
+                const secFrac = Math.round((secondsFixed - secInt) * 100);
+                const hh = String(hours).padStart(2, '0');
+                const mm = String(minutes).padStart(2, '0');
+                const ss = String(secInt).padStart(2, '0');
+                const sfrac = String(secFrac).padStart(2, '0');
+                convHHMM.value = `${hh}:${mm}:${ss},${sfrac}`;
+                // Élargir le champ pour l'affichage étendu
+                convHHMM.style.width = '160px';
+                localStorage.setItem('convertisseur_hhmm', convHHMM.value);
+            } else {
+                const hh = String(hours).padStart(2, '0');
+                const mm = String(minutes).padStart(2, '0');
+                convHHMM.value = `${hh}:${mm}`;
+                convHHMM.style.width = '90px';
                 localStorage.setItem('convertisseur_hhmm', convHHMM.value);
             }
+            // Laisse la valeur décimale telle que saisie (jusqu'à 6 décimales)
             localStorage.setItem('convertisseur_decimal', convDecimal.value);
         });
     }
@@ -2928,6 +2989,8 @@ function appliquerFormatHoraireGlobal() {
     // Sélecteurs pour tous les champs horaires (input type text avec placeholder HH:MM ou HH:MM:SS)
     const inputs = document.querySelectorAll('input[type="text"][placeholder^="HH:MM"]');
     inputs.forEach(input => {
+        // Ne pas altérer le champ du convertisseur HH:MM
+        if (input.id === 'conv-hhmm') return;
         if (formatHoraireSecondes) {
             input.placeholder = 'HH:MM:SS';
             input.style.width = '66px';
@@ -3113,5 +3176,45 @@ if (document.readyState === 'loading') {
 
     // Par défaut on montre l'onglet Général au chargement
     showGeneral();
+})();
+// ... existing code ...
+
+// ... existing code ...
+// Module 2: RHT toggle masque/affiche la pause midi
+(function() {
+    const rhtToggle = document.getElementById('zero-rht-mode');
+    const midiGroup = document.getElementById('zero-midi-group');
+    if (!rhtToggle || !midiGroup) return;
+    // Restauration
+    const saved = localStorage.getItem('zero_rht_mode') === 'true';
+    rhtToggle.checked = saved;
+    midiGroup.style.display = saved ? 'none' : 'flex';
+    rhtToggle.addEventListener('change', function() {
+        const enabled = rhtToggle.checked;
+        midiGroup.style.display = enabled ? 'none' : 'flex';
+        localStorage.setItem('zero_rht_mode', String(enabled));
+    });
+})();
+// ... existing code ...
+
+// ... existing code ...
+// Module 1: RHT toggle masque/affiche la pause midi
+(function() {
+    const rhtToggle = document.getElementById('calc-rht-mode');
+    const midiGroup = document.getElementById('calc-midi-group');
+    if (!rhtToggle || !midiGroup) return;
+    const saved = localStorage.getItem('calc_rht_mode') === 'true';
+    rhtToggle.checked = saved;
+    midiGroup.style.display = saved ? 'none' : 'flex';
+    rhtToggle.addEventListener('change', function() {
+        const enabled = rhtToggle.checked;
+        midiGroup.style.display = enabled ? 'none' : 'flex';
+        localStorage.setItem('calc_rht_mode', String(enabled));
+        // Recalculer si besoin
+        if (typeof updateCalculateur === 'function') {
+            lastInput = 'calc-arrivee';
+            updateCalculateur();
+        }
+    });
 })();
 // ... existing code ...
