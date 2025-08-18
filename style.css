@@ -335,3 +335,8 @@ body {
 #table-jours .btn-supprimer:hover {
   background: #b71c1c;
 } 
+.cell-vacances.jour-rempli {
+  background: #c8e6c9 !important; /* vert clair */
+  border: 2px solid #2e7d32 !important;
+  color: #1b5e20 !important;
+} 

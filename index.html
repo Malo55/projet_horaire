@@ -299,7 +299,7 @@
             <div style="margin-bottom:8px; font-size:0.95em;">
                 <span style="display:inline-block;width:18px;height:18px;background:#ffe082;border:2px solid #ffb300;margin-right:4px;vertical-align:middle;"></span> Congé payé
                 <span style="display:inline-block;width:18px;height:18px;background:#81d4fa;border:2px solid #0288d1;margin:0 4px 0 16px;vertical-align:middle;"></span> RTT
-                <span style="display:inline-block;width:18px;height:18px;background:#64b5f6;border:2px solid #1565c0;margin:0 4px 0 16px;vertical-align:middle;"></span> RHT
+                <span style="display:inline-block;width:18px;height:18px;background:#8e24aa;border:2px solid #4a148c;margin:0 4px 0 16px;vertical-align:middle;"></span> RHT
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:center;">
                 <button id="vac-prev-year">&#8592;</button>
@@ -317,98 +317,134 @@
             <span class="modal-close" id="parametres-modal-close">&times;</span>
             <h2 style="margin-top: 0; text-align: center; color: #1976d2;">Paramètres</h2>
             <div style="display: flex; flex-direction: column; gap: 20px;">
-                <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; border-left: 4px solid #1976d2;">
-                    <h3 style="margin: 0 0 12px 0; color: #1976d2;">Configuration générale</h3>
-                    <p style="margin: 0; color: #666; font-size: 14px;">Modifiez les paramètres de base de l'application.</p>
+                
+                <!-- Barre d'onglets -->
+                <div style="display:flex; gap:8px; align-self:center;">
+                  <button id="param-tab-general" style="padding:8px 12px; border:1px solid #1976d2; background:#1976d2; color:#fff; border-radius:6px; cursor:pointer;">Général</button>
+                  <button id="param-tab-rht" style="padding:8px 12px; border:1px solid #1976d2; background:#fff; color:#1976d2; border-radius:6px; cursor:pointer;">RHT</button>
                 </div>
-                <!-- Interrupteur format horaire -->
-                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
-                  <label for="param-format-horaire" style="font-weight: bold;">Format des horaires :</label>
-                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="param-format-horaire" style="width: 32px; height: 20px; accent-color: #1976d2;">
-                    <span id="param-format-horaire-label">HH:MM</span>
+                
+                <!-- Section Général (onglet) -->
+                <div id="parametres-general-section" style="display:flex; flex-direction: column; gap: 20px;">
+                    <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; border-left: 4px solid #1976d2;">
+                        <h3 style="margin: 0 0 12px 0; color: #1976d2;">Configuration générale</h3>
+                        <p style="margin: 0; color: #666; font-size: 14px;">Modifiez les paramètres de base de l'application.</p>
+                    </div>
+                    <!-- Interrupteur format horaire -->
+                    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+                      <label for="param-format-horaire" style="font-weight: bold;">Format des horaires :</label>
+                      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="param-format-horaire" style="width: 32px; height: 20px; accent-color: #1976d2;">
+                        <span id="param-format-horaire-label">HH:MM</span>
+                      </label>
+                    </div>
+
+                    <div id="plage-horaires-module" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; font-family: inherit; font-size: 1em; align-self: center;">
+                        <div style="display:flex; gap:12px; align-items:center;">
+                            <label for="plage-arrivee-min" style="min-width:90px;">Plage d'arrivée :</label>
+                            <input type="time" id="plage-arrivee-min" value="08:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                            <span>à</span>
+                            <input type="time" id="plage-arrivee-max" value="10:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                        </div>
+                        <div style="display:flex; gap:12px; align-items:center;">
+                            <label for="plage-midi-min" style="min-width:90px;">Plage midi :</label>
+                            <input type="time" id="plage-midi-min" value="12:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                            <span>à</span>
+                            <input type="time" id="plage-midi-max" value="14:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                        </div>
+                        <div style="display:flex; gap:12px; align-items:center;">
+                            <label for="plage-depart-min" style="min-width:90px;">Plage de départ :</label>
+                            <input type="time" id="plage-depart-min" value="15:45" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                            <span>à</span>
+                            <input type="time" id="plage-depart-max" value="18:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-weight: bold;">Jours de travail :</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" id="param-jour-lundi">
+                                    <span>Lundi</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" id="param-jour-mardi">
+                                    <span>Mardi</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" id="param-jour-mercredi">
+                                    <span>Mercredi</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" id="param-jour-jeudi">
+                                    <span>Jeudi</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" id="param-jour-vendredi">
+                                    <span>Vendredi</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" id="param-jour-samedi">
+                                    <span>Samedi</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <input type="checkbox" id="param-jour-dimanche">
+                                    <span>Dimanche</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label for="param-heures-jour" style="display: block; margin-bottom: 6px; font-weight: bold;">Heures à faire par jour :</label>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <input type="number" id="param-heures-jour" min="0" max="24" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <input type="text" id="param-heures-jour-hhmm" placeholder="HH:MM" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label for="param-heures-supplementaires" style="display: block; margin-bottom: 6px; font-weight: bold;">Heures supplémentaires :</label>
+                            <input type="number" id="param-heures-supplementaires" min="0" max="100" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        
+                        <div>
+                            <label for="param-pause-offerte" style="display: block; margin-bottom: 6px; font-weight: bold;">Temps de pause offert (minutes) :</label>
+                            <input type="number" id="param-pause-offerte" min="0" max="120" step="1" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        
+                        <div>
+                            <label for="param-pause-midi-min" style="display: block; margin-bottom: 6px; font-weight: bold;">Temps minimal pause midi (minutes) :</label>
+                            <input type="number" id="param-pause-midi-min" min="0" max="180" step="1" value="30" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Section RHT (onglet) -->
+                <div id="parametres-rht-section" style="display:none; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px; max-width:420px; align-self:center; flex-direction:column; gap:10px;">
+                  <h3 style="margin:0; color:#333;">Paramètres RHT</h3>
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="param-rht-enabled">
+                    <span>Activer / désactiver</span>
                   </label>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <label style="min-width:90px;">Période :</label>
+                    <input type="text" id="param-rht-debut" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
+                    <span>à</span>
+                    <input type="text" id="param-rht-fin" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <label style="min-width:90px;">Heures/jour :</label>
+                    <input type="number" id="param-rht-heures-jour-dec" step="0.01" style="width:90px; text-align:center;">
+                    <span style="font-weight:bold;">=</span>
+                    <input type="text" id="param-rht-heures-jour-hhmm" placeholder="HH:MM" style="width:80px; text-align:center;" inputmode="numeric" autocomplete="off">
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <label style="min-width:90px;">Pause offerte :</label>
+                    <input type="number" id="param-rht-pause-offerte" min="0" step="1" style="width:100px; text-align:center;"> <span>min</span>
+                  </div>
                 </div>
-                <div id="plage-horaires-module" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; font-family: inherit; font-size: 1em; align-self: center;">
-                    <div style="display:flex; gap:12px; align-items:center;">
-                        <label for="plage-arrivee-min" style="min-width:90px;">Plage d'arrivée :</label>
-                        <input type="time" id="plage-arrivee-min" value="08:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
-                        <span>à</span>
-                        <input type="time" id="plage-arrivee-max" value="10:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
-                    </div>
-                    <div style="display:flex; gap:12px; align-items:center;">
-                        <label for="plage-midi-min" style="min-width:90px;">Plage midi :</label>
-                        <input type="time" id="plage-midi-min" value="12:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
-                        <span>à</span>
-                        <input type="time" id="plage-midi-max" value="14:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
-                    </div>
-                    <div style="display:flex; gap:12px; align-items:center;">
-                        <label for="plage-depart-min" style="min-width:90px;">Plage de départ :</label>
-                        <input type="time" id="plage-depart-min" value="15:45" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
-                        <span>à</span>
-                        <input type="time" id="plage-depart-max" value="18:00" step="300" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit;">
-                    </div>
-                </div>
-                
-                <div style="display: flex; flex-direction: column; gap: 16px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 6px; font-weight: bold;">Jours de travail :</label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                                <input type="checkbox" id="param-jour-lundi">
-                                <span>Lundi</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                                <input type="checkbox" id="param-jour-mardi">
-                                <span>Mardi</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                                <input type="checkbox" id="param-jour-mercredi">
-                                <span>Mercredi</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                                <input type="checkbox" id="param-jour-jeudi">
-                                <span>Jeudi</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                                <input type="checkbox" id="param-jour-vendredi">
-                                <span>Vendredi</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                                <input type="checkbox" id="param-jour-samedi">
-                                <span>Samedi</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                                <input type="checkbox" id="param-jour-dimanche">
-                                <span>Dimanche</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label for="param-heures-jour" style="display: block; margin-bottom: 6px; font-weight: bold;">Heures à faire par jour :</label>
-                        <div style="display: flex; gap: 12px; align-items: center;">
-                            <input type="number" id="param-heures-jour" min="0" max="24" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                            <input type="text" id="param-heures-jour-hhmm" placeholder="HH:MM" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label for="param-heures-supplementaires" style="display: block; margin-bottom: 6px; font-weight: bold;">Heures supplémentaires :</label>
-                        <input type="number" id="param-heures-supplementaires" min="0" max="100" step="0.01" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    
-                    <div>
-                        <label for="param-pause-offerte" style="display: block; margin-bottom: 6px; font-weight: bold;">Temps de pause offert (minutes) :</label>
-                        <input type="number" id="param-pause-offerte" min="0" max="120" step="1" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    
-                    <div>
-                        <label for="param-pause-midi-min" style="display: block; margin-bottom: 6px; font-weight: bold;">Temps minimal pause midi (minutes) :</label>
-                        <input type="number" id="param-pause-midi-min" min="0" max="180" step="1" value="30" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                </div>
-                
+
                 <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
                     <button id="parametres-annuler" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">
                         Fermer

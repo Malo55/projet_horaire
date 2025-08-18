@@ -1009,6 +1009,10 @@ function renderCalendrierVacances(annee) {
                 if(joursVacances.includes(dateStr)) td.classList.add('jour-vacances');
                 if(joursRTT.includes(dateStr)) td.classList.add('jour-rtt');
                 if(joursRHT.includes(dateStr)) td.classList.add('jour-rht');
+                // Marque les jours avec heures (comme calendrier principal)
+                if (jours && Array.isArray(jours) && jours.some(j => j.date === dateStr)) {
+                    td.classList.add('jour-rempli');
+                }
                 td.onclick = () => {
                     if(joursVacances.includes(dateStr)) {
                         joursVacances = joursVacances.filter(d => d !== dateStr);
@@ -1042,12 +1046,8 @@ function renderCalendrierVacances(annee) {
                             localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
                         }
                     }
-                    
-                    // Sauvegarder les données dans le localStorage
                     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
                     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
-                    
-                    // Mettre à jour le total d'heures supplémentaires en temps réel
                     afficherJours();
                     updateCompteursAbsences();
                     return;
@@ -3016,4 +3016,102 @@ if (document.readyState === 'loading') {
 } else {
     updateCompteursAbsences();
 }
+// ... existing code ...
+
+// ... existing code ...
+// --- Paramètres: gestion de l'onglet RHT et des champs ---
+(function() {
+    const tabGeneral = document.getElementById('param-tab-general');
+    const tabRHT = document.getElementById('param-tab-rht');
+    const sectionRHT = document.getElementById('parametres-rht-section');
+    const sectionGeneral = document.getElementById('parametres-general-section');
+
+    function showGeneral() {
+        if (sectionGeneral) sectionGeneral.style.display = 'flex';
+        if (sectionRHT) sectionRHT.style.display = 'none';
+        if (tabGeneral) { tabGeneral.style.background = '#1976d2'; tabGeneral.style.color = '#fff'; }
+        if (tabRHT) { tabRHT.style.background = '#fff'; tabRHT.style.color = '#1976d2'; }
+    }
+    function showRHT() {
+        if (sectionGeneral) sectionGeneral.style.display = 'none';
+        if (sectionRHT) sectionRHT.style.display = 'flex';
+        if (tabRHT) { tabRHT.style.background = '#1976d2'; tabRHT.style.color = '#fff'; }
+        if (tabGeneral) { tabGeneral.style.background = '#fff'; tabGeneral.style.color = '#1976d2'; }
+    }
+    if (tabGeneral) tabGeneral.addEventListener('click', showGeneral);
+    if (tabRHT) tabRHT.addEventListener('click', showRHT);
+
+    // Champs RHT
+    const rhtEnabled = document.getElementById('param-rht-enabled');
+    const rhtDebut = document.getElementById('param-rht-debut');
+    const rhtFin = document.getElementById('param-rht-fin');
+    const rhtHeuresDec = document.getElementById('param-rht-heures-jour-dec');
+    const rhtHeuresHHMM = document.getElementById('param-rht-heures-jour-hhmm');
+    const rhtPauseOfferte = document.getElementById('param-rht-pause-offerte');
+
+    function formatJJMMAAInput(input) {
+        if (!input) return;
+        input.addEventListener('input', function() {
+            let v = input.value.replace(/[^0-9]/g, '').slice(0,6);
+            if (v.length >= 5) input.value = v.slice(0,2) + '.' + v.slice(2,4) + '.' + v.slice(4,6);
+            else if (v.length >= 3) input.value = v.slice(0,2) + '.' + v.slice(2,4);
+            else input.value = v;
+        });
+    }
+    formatJJMMAAInput(rhtDebut);
+    formatJJMMAAInput(rhtFin);
+
+    function hhmmToDec(val) {
+        if (!/^\d{2}:\d{2}$/.test(val)) return null;
+        const [h,m] = val.split(':').map(Number);
+        return h + m/60;
+    }
+    function decToHHMM(dec) {
+        if (dec == null || isNaN(dec)) return '';
+        const h = Math.floor(dec);
+        const m = Math.round((dec - h)*60);
+        return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+    }
+
+    // Restauration
+    if (rhtEnabled) rhtEnabled.checked = localStorage.getItem('rht_enabled') === 'true';
+    if (rhtDebut) rhtDebut.value = localStorage.getItem('rht_debut') || '';
+    if (rhtFin) rhtFin.value = localStorage.getItem('rht_fin') || '';
+    if (rhtHeuresDec) rhtHeuresDec.value = localStorage.getItem('rht_heures_dec') || '';
+    if (rhtHeuresHHMM) rhtHeuresHHMM.value = localStorage.getItem('rht_heures_hhmm') || '';
+    if (rhtPauseOfferte) rhtPauseOfferte.value = localStorage.getItem('rht_pause_offerte') || '';
+
+    // Synchronisation heures décimal <-> HH:MM
+    if (rhtHeuresDec && rhtHeuresHHMM) {
+        rhtHeuresDec.addEventListener('input', function() {
+            const dec = parseFloat(this.value.replace(',', '.'));
+            if (!isNaN(dec)) rhtHeuresHHMM.value = decToHHMM(dec);
+            localStorage.setItem('rht_heures_dec', this.value);
+            localStorage.setItem('rht_heures_hhmm', rhtHeuresHHMM.value);
+        });
+        rhtHeuresHHMM.addEventListener('input', function() {
+            const dec = hhmmToDec(this.value);
+            if (dec != null) rhtHeuresDec.value = dec.toFixed(2).replace('.', ',');
+            localStorage.setItem('rht_heures_hhmm', this.value);
+            localStorage.setItem('rht_heures_dec', rhtHeuresDec.value);
+        });
+    }
+
+    // Sauvegardes
+    if (rhtEnabled) rhtEnabled.addEventListener('change', function() {
+        localStorage.setItem('rht_enabled', String(this.checked));
+    });
+    if (rhtDebut) rhtDebut.addEventListener('blur', function() {
+        localStorage.setItem('rht_debut', rhtDebut.value);
+    });
+    if (rhtFin) rhtFin.addEventListener('blur', function() {
+        localStorage.setItem('rht_fin', rhtFin.value);
+    });
+    if (rhtPauseOfferte) rhtPauseOfferte.addEventListener('input', function() {
+        localStorage.setItem('rht_pause_offerte', rhtPauseOfferte.value);
+    });
+
+    // Par défaut on montre l'onglet Général au chargement
+    showGeneral();
+})();
 // ... existing code ...
