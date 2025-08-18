@@ -2,7 +2,8 @@
 
 MAJ auto du nombre de jour RTT/RHT/CP quand on lance le cal
 Creation du mode RHT ph1,2, et 3
-
+Couleur de la legende RHT dans le modal par rapport a celle du calendrier
+Nouveau module de calcul d'heure RHT ? Ou maj par rapport au mode RHT activé ?
 
 Mode RHT ph1 : (01/07/2025)
 
