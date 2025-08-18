@@ -3010,4 +3010,10 @@ function updateCompteursAbsences() {
     if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
 }
+// Appel initial des compteurs d'absences au chargement
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateCompteursAbsences);
+} else {
+    updateCompteursAbsences();
+}
 // ... existing code ...
