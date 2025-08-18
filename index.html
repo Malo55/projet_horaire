@@ -71,6 +71,8 @@
         <div>CP : <span id="compteur-vacances">0</span></div>
         <div>RTT : <span id="compteur-rtt">0</span> (<span id="compteur-rtt-heures">0,00</span> h)</div>
         <div>RHT : <span id="compteur-rht">0</span> (<span id="compteur-rht-heures">0,00</span> h)</div>
+        <div>Heures perdues : <span id="compteur-rht-perdues">0,00</span> h</div>
+        <div>RHT supplémentaire : <span id="compteur-rht-supp">0,00</span> h</div>
       </div>
     </div>
     <div id="modules-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; justify-content: center; margin-bottom: 24px;">
@@ -455,6 +457,20 @@
                   <div style="display:flex; align-items:center; gap:12px;">
                     <label style="min-width:90px;">Pause offerte :</label>
                     <input type="number" id="param-rht-pause-offerte" min="0" step="1" style="width:100px; text-align:center;"> <span>min</span>
+                  </div>
+                  <div id="plage-horaires-rht-module" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; font-family: inherit; font-size: 1em; align-self: center;">
+                    <div style="display:flex; gap:12px; align-items:center;">
+                      <label for="rht-plage-arrivee-min" style="min-width:90px;">Plage d'arrivée (RHT) :</label>
+                      <input type="text" id="rht-plage-arrivee-min" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                      <span>à</span>
+                      <input type="text" id="rht-plage-arrivee-max" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                    </div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                      <label for="rht-plage-depart-min" style="min-width:90px;">Plage de départ (RHT) :</label>
+                      <input type="text" id="rht-plage-depart-min" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                      <span>à</span>
+                      <input type="text" id="rht-plage-depart-max" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                    </div>
                   </div>
                 </div>
 

@@ -325,6 +325,58 @@ function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant
     return (totalMinutes / 60).toFixed(2);
 }
 
+// Variante qui permet de forcer une valeur de pause offerte (utile pour le mode RHT)
+function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres, pauseOfferteMinutes, ignoreMidiMin = false) {
+    const toMinutes = (h) => {
+        if (!h || !/^\d{2}:\d{2}$/.test(h)) return 0;
+        const [hh, mm] = h.split(':').map(Number);
+        return hh * 60 + mm;
+    };
+    const arriveeMin = toMinutes(arrivee);
+    const departMin = toMinutes(depart);
+    let totalMinutes = departMin - arriveeMin;
+    // Pause midi (toujours déduite, au moins le minimum paramétré)
+    let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
+    let pauseMidi = 0;
+    if (pauseDejDebut && pauseDejFin) {
+        pauseMidi = toMinutes(pauseDejFin) - toMinutes(pauseDejDebut);
+        if (!ignoreMidiMin && pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
+        totalMinutes -= pauseMidi;
+    } else {
+        if (!ignoreMidiMin) {
+            totalMinutes -= pauseMidiMin;
+        }
+    }
+    // Pauses dynamiques (avant et après midi)
+    let totalPauseDyn = 0;
+    if (Array.isArray(pausesAvant)) {
+        pausesAvant.forEach(p => {
+            const debut = toMinutes(p.debut);
+            const fin = toMinutes(p.fin);
+            if (debut !== null && fin !== null && fin > debut) {
+                totalPauseDyn += (fin - debut);
+            }
+        });
+    }
+    if (Array.isArray(pausesApres)) {
+        pausesApres.forEach(p => {
+            const debut = toMinutes(p.debut);
+            const fin = toMinutes(p.fin);
+            if (debut !== null && fin !== null && fin > debut) {
+                totalPauseDyn += (fin - debut);
+            }
+        });
+    }
+    // Seul l'excédent > pause offerte est déduit (pause offerte surchargée si fournie)
+    const pauseOff = (typeof pauseOfferteMinutes === 'number' && !isNaN(pauseOfferteMinutes))
+        ? pauseOfferteMinutes
+        : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+    if (totalPauseDyn > pauseOff) {
+        totalMinutes -= (totalPauseDyn - pauseOff);
+    }
+    return (totalMinutes / 60).toFixed(2);
+}
+
 // Fonction pour calculer l'écart
 function calculerEcart(heuresTravaillees, heuresJour) {
     const ecart = heuresTravaillees - heuresJour;
@@ -351,7 +403,7 @@ function afficherJours() {
         return y === anneeStr && m === moisStr;
     });
     // On crée un Set de tous les jours RTT du mois affiché (jours RTT inclus même sans saisie d'horaire)
-    const joursRTTSet = new Set(joursRTT.filter(dateStr => {
+    const joursRTTSet = new Set((joursRTT || []).filter(dateStr => {
         const [y, m] = dateStr.split('-');
         return y === anneeStr && m === moisStr;
     }));
@@ -359,14 +411,55 @@ function afficherJours() {
     joursAffiches.forEach((jour, idx) => {
         const isVac = isJourVacances(jour.date);
         const isRtt = isJourRTT(jour.date);
+        const isRht = (typeof isJourRHT === 'function' && isJourRHT(jour.date)) || isDateInRHT(jour.date);
         const isJourTravailleJour = isJourTravaille(jour.date);
         const tr = document.createElement('tr');
+        
         // Calcul dynamique des heures travaillées et de l'écart
-        let heuresTravDyn = (isVac || isRtt) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
-        let ecartDyn = (isVac || isRtt) ? 0 : heuresTravDyn - heuresJour;
-        let ecartAfficheDyn = (isVac || isRtt) ? (isRtt ? '-' : '') + heuresJour.toFixed(2) : (ecartDyn >= 0 ? '+' : '') + ecartDyn.toFixed(2);
-        const ecartClassDyn = ecartDyn >= 0 ? 'ecart-positif' : 'ecart-negatif';
-        totalEcart += ecartDyn;
+        // Heures travaillées: si RHT, recalcul avec pause offerte RHT, sinon calcul standard
+        let heuresTravDyn = 0;
+        if (!(isVac || isRtt)) {
+            if (isRht) {
+                const pauseOffEff = getPauseOfferteEffective(jour.date);
+                // En mode RHT, on n'impose pas de minimum de pause midi
+                heuresTravDyn = parseFloat(calculerHeuresAvecPause(
+                    jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                    jour.pausesAvant, jour.pausesApres,
+                    pauseOffEff,
+                    true
+                ));
+            } else {
+                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+            }
+        }
+        
+        // Heures à faire selon le mode (RHT ou standard)
+        let heuresJourEff = isRht ? getHeuresJourMinutesEffective(jour.date) / 60 : heuresJour;
+        let ecartDyn = (isVac || isRtt) ? 0 : heuresTravDyn - heuresJourEff;
+        
+        // Affichage de l'écart selon le mode
+        let ecartAfficheDyn, ecartClassDyn;
+        if (isVac || isRtt) {
+            ecartAfficheDyn = (isRtt ? '-' : '') + heuresJourEff.toFixed(2);
+            ecartClassDyn = 'ecart-negatif';
+        } else if (isRht) {
+            // Mode RHT : pas de libellé texte, uniquement la valeur; couleurs via classes
+            if (ecartDyn > 0) {
+                ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
+                ecartClassDyn = 'ecart-rht-perdues';
+            } else if (ecartDyn < 0) {
+                ecartAfficheDyn = `${ecartDyn.toFixed(2)}`;
+                ecartClassDyn = 'ecart-rht-supp';
+            } else {
+                ecartAfficheDyn = '0.00';
+                ecartClassDyn = 'ecart-rht-ok';
+            }
+        } else {
+            // Mode standard : affecte le total global
+            ecartAfficheDyn = (ecartDyn >= 0 ? '+' : '') + ecartDyn.toFixed(2);
+            ecartClassDyn = ecartDyn >= 0 ? 'ecart-positif' : 'ecart-negatif';
+            totalEcart += ecartDyn;
+        }
         // Pause midi fusionnée
         let midiCell = '';
         if (jour.pauseDejDebut && jour.pauseDejFin) {
@@ -392,7 +485,8 @@ function afficherJours() {
         let totalPause = totalPausesDyn(jour);
         let totalPauseHHMM = `${String(Math.floor(totalPause/60)).padStart(2,'0')}:${String(totalPause%60).padStart(2,'0')}`;
         // Temps supplémentaire par rapport au paramètre pause offerte
-        let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+        // Utiliser la pause offerte effective (RHT si applicable) pour l'affichage des pauses
+        let pauseOfferteVal = getPauseOfferteEffective(jour.date);
         let suppPause = totalPause - pauseOfferteVal;
         let suppPauseAff = '';
         if (suppPause > 0) {
@@ -405,7 +499,7 @@ function afficherJours() {
             suppPauseAff = `<br><span style=\"font-size:0.95em;color:#555;\">(${suppDec} / -${suppHHMM})</span>`;
         }
         let pauseCell = totalPause > 0 ? totalPauseHHMM + suppPauseAff : '-';
-        // Conversion de l'écart en HH:MM
+        // Conversion de l'écart en HH:MM (affiche par rapport aux heures à faire effectives)
         const ecartMinutes = Math.round(ecartDyn * 60);
         const signe = ecartMinutes >= 0 ? '+' : '-';
         const absMinutes = Math.abs(ecartMinutes);
@@ -452,9 +546,18 @@ function afficherJours() {
     joursAnnee.forEach(jour => {
         const isVac = isJourVacances(jour.date);
         const isRtt = isJourRTT(jour.date);
+        const isRht = isDateInRHT(jour.date);
         let heuresTravDyn = (isVac || isRtt) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
-        let ecartDyn = (isVac || isRtt) ? 0 : heuresTravDyn - heuresJour;
-        totalEcartAnnee += ecartDyn;
+        
+        if (isVac || isRtt) {
+            // Vacances et RTT : pas d'écart
+        } else if (isRht) {
+            // Jours RHT: n'affectent ni le total annuel ni les compteurs ici
+        } else {
+            // Mode standard : affecte le total annuel
+            let ecartDyn = heuresTravDyn - heuresJour;
+            totalEcartAnnee += ecartDyn;
+        }
     });
     // Déduction RTT sans saisie d'horaire
     totalEcartAnnee -= joursRTTAnnee.length * heuresJour;
@@ -472,6 +575,9 @@ function afficherJours() {
         });
     });
     // majCalendrier(); // SUPPRIMÉ pour éviter la boucle infinie
+    
+    // Mise à jour des compteurs d'absences après affichage
+    updateCompteursAbsences();
 }
 
 // Gestion du formulaire (adaptée pour la pause)
@@ -1181,12 +1287,22 @@ let plageMidiMin = 720; // 12:00 en minutes
 let plageMidiMax = 840; // 14:00 en minutes
 let plageDepartMin = 945; // 15:45 en minutes
 let plageDepartMax = 1080; // 18:00 en minutes
+// Plages RHT (arrivée/départ)
+let rhtPlageArriveeMin = parseInt(localStorage.getItem('rhtPlageArriveeMin')) || 480;
+let rhtPlageArriveeMax = parseInt(localStorage.getItem('rhtPlageArriveeMax')) || 600;
+let rhtPlageDepartMin = parseInt(localStorage.getItem('rhtPlageDepartMin')) || 945;
+let rhtPlageDepartMax = parseInt(localStorage.getItem('rhtPlageDepartMax')) || 1080;
 const plageArriveeMinInput = document.getElementById('plage-arrivee-min');
 const plageArriveeMaxInput = document.getElementById('plage-arrivee-max');
 const plageMidiMinInput = document.getElementById('plage-midi-min');
 const plageMidiMaxInput = document.getElementById('plage-midi-max');
 const plageDepartMinInput = document.getElementById('plage-depart-min');
 const plageDepartMaxInput = document.getElementById('plage-depart-max');
+// Inputs RHT
+const rhtPlageArriveeMinInput = document.getElementById('rht-plage-arrivee-min');
+const rhtPlageArriveeMaxInput = document.getElementById('rht-plage-arrivee-max');
+const rhtPlageDepartMinInput = document.getElementById('rht-plage-depart-min');
+const rhtPlageDepartMaxInput = document.getElementById('rht-plage-depart-max');
 // Restauration depuis le localStorage
 if (localStorage.getItem('plageArriveeMin')) {
     plageArriveeMin = parseInt(localStorage.getItem('plageArriveeMin'));
@@ -1248,6 +1364,35 @@ if (plageDepartMinInput && plageDepartMaxInput) {
         localStorage.setItem('plageDepartMax', plageDepartMax);
     });
 }
+// Restauration/écouteurs RHT
+if (rhtPlageArriveeMinInput && rhtPlageArriveeMaxInput) {
+    rhtPlageArriveeMinInput.value = toHHMM(rhtPlageArriveeMin);
+    rhtPlageArriveeMaxInput.value = toHHMM(rhtPlageArriveeMax);
+    rhtPlageArriveeMin = toMinutes(rhtPlageArriveeMinInput.value);
+    rhtPlageArriveeMax = toMinutes(rhtPlageArriveeMaxInput.value);
+    rhtPlageArriveeMinInput.addEventListener('input', function() {
+        rhtPlageArriveeMin = toMinutes(this.value);
+        localStorage.setItem('rhtPlageArriveeMin', rhtPlageArriveeMin);
+    });
+    rhtPlageArriveeMaxInput.addEventListener('input', function() {
+        rhtPlageArriveeMax = toMinutes(this.value);
+        localStorage.setItem('rhtPlageArriveeMax', rhtPlageArriveeMax);
+    });
+}
+if (rhtPlageDepartMinInput && rhtPlageDepartMaxInput) {
+    rhtPlageDepartMinInput.value = toHHMM(rhtPlageDepartMin);
+    rhtPlageDepartMaxInput.value = toHHMM(rhtPlageDepartMax);
+    rhtPlageDepartMin = toMinutes(rhtPlageDepartMinInput.value);
+    rhtPlageDepartMax = toMinutes(rhtPlageDepartMaxInput.value);
+    rhtPlageDepartMinInput.addEventListener('input', function() {
+        rhtPlageDepartMin = toMinutes(this.value);
+        localStorage.setItem('rhtPlageDepartMin', rhtPlageDepartMin);
+    });
+    rhtPlageDepartMaxInput.addEventListener('input', function() {
+        rhtPlageDepartMax = toMinutes(this.value);
+        localStorage.setItem('rhtPlageDepartMax', rhtPlageDepartMax);
+    });
+}
 function clampDepartMins(mins) {
     if (mins < plageDepartMin) return plageDepartMin;
     if (mins > plageDepartMax) return plageDepartMax;
@@ -1280,20 +1425,39 @@ function updateCalculateur() {
     } else {
         pause1Mins = getPause1Minutes();
     }
-    // Pause midi : mode durée ou début/fin
+    // Pause midi : mode durée ou début/fin (seulement si pas en mode RHT)
     let pauseMins = 0;
-    if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
-        const duree = document.getElementById('calc-pause-midi-duree')?.value;
-        if (/^\d{2}:\d{2}$/.test(duree)) {
-            const [hh, mm] = duree.split(':').map(Number);
-            pauseMins = hh * 60 + mm;
+    // Note: calcRhtChecked sera défini juste après, on vérifie le DOM directement ici
+    const isRhtMode = !!document.getElementById('calc-rht-mode')?.checked;
+    if (!isRhtMode) {
+        if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
+            const duree = document.getElementById('calc-pause-midi-mode-duree')?.value;
+            if (/^\d{2}:\d{2}$/.test(duree)) {
+                const [hh, mm] = duree.split(':').map(Number);
+                pauseMins = hh * 60 + mm;
+            }
+        } else {
+            pauseMins = getPauseMinutesAvecMin();
         }
-    } else {
-        pauseMins = getPauseMinutesAvecMin();
     }
-    let travailMins = getHeuresJourMinutes();
+    // Paramètres selon le mode RHT ou normal
+    const calcRhtChecked = !!document.getElementById('calc-rht-mode')?.checked;
+    let travailMins, pauseOfferteVal;
+    
+    if (calcRhtChecked) {
+        // Mode RHT : utiliser les paramètres RHT
+        const rhtDecStr = localStorage.getItem('rht_heures_dec');
+        const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        travailMins = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
+        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+        pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+    } else {
+        // Mode normal : utiliser les paramètres généraux
+        travailMins = getHeuresJourMinutes();
+        pauseOfferteVal = getPauseOfferte();
+    }
+    
     let pauseSup = getPauseSupMinutes();
-    let pauseOfferteVal = getPauseOfferte();
     let arriveeMins = null, departMins = null, departMinsAvantClamp = null;
     // Calcul du delta d'heure à chaque modification
     let delta = null;
@@ -1309,9 +1473,11 @@ function updateCalculateur() {
             input.style.background = '';
         }
     }
+    const arriveeMinClamp = (mins) => calcRhtChecked ? Math.min(Math.max(mins, rhtPlageArriveeMin), rhtPlageArriveeMax) : Math.min(Math.max(mins, plageArriveeMin), plageArriveeMax);
+    const departMinClamp = (mins) => calcRhtChecked ? Math.min(Math.max(mins, rhtPlageDepartMin), rhtPlageDepartMax) : Math.min(Math.max(mins, plageDepartMin), plageDepartMax);
     if (lastInput === 'calc-arrivee' && calcArrivee.value && /^\d{2}:\d{2}$/.test(calcArrivee.value)) {
         arriveeMins = toMinutes(calcArrivee.value);
-        checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
+        checkPlage(calcArrivee, arriveeMins, calcRhtChecked ? rhtPlageArriveeMin : plageArriveeMin, calcRhtChecked ? rhtPlageArriveeMax : plageArriveeMax);
         departMins = arriveeMins + travailMins + pauseMins;
         if (pause1Mins > pauseOfferteVal) {
             departMins += (pause1Mins - pauseOfferteVal);
@@ -1322,10 +1488,10 @@ function updateCalculateur() {
         departMinsAvantClamp = departMins;
         // On ne corrige plus la valeur, on affiche juste le calcul
         calcDepart.value = toHHMM(departMins);
-        checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
+        checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
     } else if (lastInput === 'calc-depart' && calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
         departMins = toMinutes(calcDepart.value);
-        checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
+        checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
         if (pause1Mins > pauseOfferteVal) {
             departMins -= (pause1Mins - pauseOfferteVal);
         }
@@ -1334,7 +1500,7 @@ function updateCalculateur() {
         }
         arriveeMins = departMins - travailMins - pauseMins;
         calcArrivee.value = toHHMM(arriveeMins);
-        checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
+        checkPlage(calcArrivee, arriveeMins, calcRhtChecked ? rhtPlageArriveeMin : plageArriveeMin, calcRhtChecked ? rhtPlageArriveeMax : plageArriveeMax);
     } else if (
         lastInput === 'calc-pause1-debut' || lastInput === 'calc-pause1-fin' ||
         lastInput === 'calc-pause2-debut' || lastInput === 'calc-pause2-fin' ||
@@ -1345,7 +1511,7 @@ function updateCalculateur() {
         // Si l'arrivée est remplie, on recalcule le départ
         if (calcArrivee.value && /^\d{2}:\d{2}$/.test(calcArrivee.value)) {
             arriveeMins = toMinutes(calcArrivee.value);
-            checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
+            checkPlage(calcArrivee, arriveeMins, calcRhtChecked ? rhtPlageArriveeMin : plageArriveeMin, calcRhtChecked ? rhtPlageArriveeMax : plageArriveeMax);
             departMins = arriveeMins + travailMins + pauseMins;
             if (pause1Mins > pauseOfferteVal) {
                 departMins += (pause1Mins - pauseOfferteVal);
@@ -1355,10 +1521,10 @@ function updateCalculateur() {
             }
             departMinsAvantClamp = departMins;
             calcDepart.value = toHHMM(departMins);
-            checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
+            checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
         } else if (calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
             departMins = toMinutes(calcDepart.value);
-            checkPlage(calcDepart, departMins, plageDepartMin, plageDepartMax);
+            checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
             if (pause1Mins > pauseOfferteVal) {
                 departMins -= (pause1Mins - pauseOfferteVal);
             }
@@ -1367,7 +1533,7 @@ function updateCalculateur() {
             }
             arriveeMins = departMins - travailMins - pauseMins;
             calcArrivee.value = toHHMM(arriveeMins);
-            checkPlage(calcArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
+            checkPlage(calcArrivee, arriveeMins, calcRhtChecked ? rhtPlageArriveeMin : plageArriveeMin, calcRhtChecked ? rhtPlageArriveeMax : plageArriveeMax);
         }
     }
     let infoPause1 = pause1Mins > 0 ? `pause matin de ${pause1Mins} min` : 'pas de pause matin';
@@ -1377,8 +1543,22 @@ function updateCalculateur() {
 ['calcPauseDebut', 'calcPauseFin', 'calcArrivee', 'calcDepart', 'calcPause2Debut', 'calcPause2Fin', 'calcPause1Debut', 'calcPause1Fin'].forEach(id => {
     const el = document.getElementById(id.replace(/([A-Z])/g, '-$1').toLowerCase());
     if (el) {
-        el.addEventListener('input', function() { lastInput = el.id; updateCalculateur(); });
-        el.addEventListener('change', function() { lastInput = el.id; updateCalculateur(); });
+        el.addEventListener('input', function() { 
+            lastInput = el.id; 
+            updateCalculateur(); 
+            // Mettre à jour le delta des heures supplémentaires
+            if (typeof calculerHeuresSupCalculette === 'function') {
+                setTimeout(calculerHeuresSupCalculette, 0);
+            }
+        });
+        el.addEventListener('change', function() { 
+            lastInput = el.id; 
+            updateCalculateur(); 
+            // Mettre à jour le delta des heures supplémentaires
+            if (typeof calculerHeuresSupCalculette === 'function') {
+                setTimeout(calculerHeuresSupCalculette, 0);
+            }
+        });
     }
 });
 
@@ -1386,8 +1566,20 @@ function updateCalculateur() {
 if (typeof calcPauseSupFields !== 'undefined' && calcPauseSupFields) calcPauseSupFields.style.display = pauseCheckbox.checked ? '' : 'none';
 
 if (heuresJourInput) {
-    heuresJourInput.addEventListener('input', updateCalculateur);
-    heuresJourInput.addEventListener('change', updateCalculateur);
+    heuresJourInput.addEventListener('input', function() {
+        updateCalculateur();
+        // Mettre à jour le delta des heures supplémentaires
+        if (typeof calculerHeuresSupCalculette === 'function') {
+            setTimeout(calculerHeuresSupCalculette, 0);
+        }
+    });
+    heuresJourInput.addEventListener('change', function() {
+        updateCalculateur();
+        // Mettre à jour le delta des heures supplémentaires
+        if (typeof calculerHeuresSupCalculette === 'function') {
+            setTimeout(calculerHeuresSupCalculette, 0);
+        }
+    });
 }
 
 // Initialisation des jours de travail
@@ -1697,9 +1889,23 @@ function calculerHeuresSupZero() {
     // Conversion
     const arriveeMin = toMinutes(arrivee);
     const departMin = toMinutes(depart);
-    // Paramètres globaux
-    let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
-    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    // Paramètres globaux / mode RHT
+    const zeroRhtChecked = !!document.getElementById('zero-rht-mode')?.checked;
+    let heuresJourMin;
+    let pauseOfferteVal;
+    if (zeroRhtChecked) {
+        const rhtDecStr = localStorage.getItem('rht_heures_dec');
+        const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
+        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+        pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+    } else {
+        // Mode normal : utiliser les paramètres généraux
+        const heuresJourInput = document.getElementById('heures-jour');
+        const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
+        pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    }
     let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
     // Calcul
     if (
@@ -1710,10 +1916,12 @@ function calculerHeuresSupZero() {
         return;
     }
     let dureeTravail = departMin - arriveeMin;
-    // Pause midi (toujours déduite, au moins le minimum)
-    let pauseMidi = pauseMidiDureeMin;
-    if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
-    dureeTravail -= pauseMidi;
+    // Pause midi : déduite seulement si pas en mode RHT
+    if (!zeroRhtChecked) {
+        let pauseMidi = pauseMidiDureeMin;
+        if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
+        dureeTravail -= pauseMidi;
+    }
     // Pause matin : seul l'excédent > pause offerte est déduit
     let pauseMatin = pause1DureeMin;
     if (pauseMatin > pauseOfferteVal) {
@@ -1721,6 +1929,9 @@ function calculerHeuresSupZero() {
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
+    
+
+    
     // Conversion en HH:MM
     let totalMinutes = Math.round(heuresSup * 60);
     let signe = totalMinutes >= 0 ? '+' : '-';
@@ -1736,6 +1947,13 @@ function calculerHeuresSupZero() {
     const el = document.getElementById(id);
     if (el) safeAddEventListener(id, 'input', calculerHeuresSupZero);
 });
+// Recalcul sur bascule RHT module 2
+if (document.getElementById('zero-rht-mode')) {
+    safeAddEventListener('zero-rht-mode', 'change', function() {
+        calculerHeuresSupZero();
+        updateZeroPlages(); // Mettre à jour la mise en forme des plages
+    });
+}
 // Calcul initial au chargement
 calculerHeuresSupZero();
 
@@ -1807,9 +2025,23 @@ function calculerHeuresSupCalculette() {
     // Conversion
     const arriveeMin = toMinutes(arrivee);
     const departMin = toMinutes(depart);
-    // Paramètres globaux
-    let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
-    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    // Paramètres globaux / mode RHT
+    const calcRhtChecked = !!document.getElementById('calc-rht-mode')?.checked;
+    let heuresJourMin;
+    let pauseOfferteVal;
+    if (calcRhtChecked) {
+        const rhtDecStr = localStorage.getItem('rht_heures_dec');
+        const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
+        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+        pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+    } else {
+        // Mode normal : utiliser les paramètres généraux
+        const heuresJourInput = document.getElementById('heures-jour');
+        const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
+        pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    }
     let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
     // Calcul
     if (
@@ -1820,10 +2052,12 @@ function calculerHeuresSupCalculette() {
         return;
     }
     let dureeTravail = departMin - arriveeMin;
-    // Pause midi (toujours déduite, au moins le minimum)
-    let pauseMidi = pauseMidiDureeMin;
-    if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
-    dureeTravail -= pauseMidi;
+    // Pause midi : déduite seulement si pas en mode RHT
+    if (!calcRhtChecked) {
+        let pauseMidi = pauseMidiDureeMin;
+        if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
+        dureeTravail -= pauseMidi;
+    }
     // Pause matin : seul l'excédent > pause offerte est déduit
     let pauseMatin = pause1DureeMin;
     if (pauseMatin > pauseOfferteVal) {
@@ -1831,6 +2065,24 @@ function calculerHeuresSupCalculette() {
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
+    
+    // Debug: afficher les valeurs pour comprendre le calcul
+    console.log('=== DEBUG Module 1 Delta ===');
+    console.log('Mode RHT activé:', calcRhtChecked);
+    console.log('Arrivée:', arrivee, '(', arriveeMin, 'min)');
+    console.log('Départ:', depart, '(', departMin, 'min)');
+    console.log('Durée brute:', departMin - arriveeMin, 'min');
+    console.log('Pause midi saisie:', pauseMidiDureeMin, 'min');
+    console.log('Pause midi appliquée:', calcRhtChecked ? '0 (mode RHT)' : pauseMidiDureeMin, 'min');
+    console.log('Pause matin:', pause1DureeMin, 'min');
+    console.log('Pause offerte:', pauseOfferteVal, 'min');
+    console.log('Durée travail après pauses:', dureeTravail, 'min');
+    console.log('Heures à faire (RHT:', calcRhtChecked, '):', heuresJourMin/60, 'h (', heuresJourMin, 'min)');
+    console.log('Heures sup calculées:', heuresSup, 'h');
+    console.log('localStorage rht_heures_dec:', localStorage.getItem('rht_heures_dec'));
+    console.log('localStorage rht_pause_offerte:', localStorage.getItem('rht_pause_offerte'));
+    console.log('======================');
+    
     calcHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
     calcHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
 }
@@ -1839,6 +2091,10 @@ function calculerHeuresSupCalculette() {
     const el = document.getElementById(id);
     if (el) safeAddEventListener(id, 'input', calculerHeuresSupCalculette);
 });
+// Recalcul sur bascule RHT module 1
+if (document.getElementById('calc-rht-mode')) {
+    safeAddEventListener('calc-rht-mode', 'change', calculerHeuresSupCalculette);
+}
 // Calcul initial au chargement
 calculerHeuresSupCalculette(); 
 
@@ -1924,6 +2180,16 @@ function updateZeroPlages() {
     const zeroArrivee = document.getElementById('zero-arrivee');
     const zeroDepart = document.getElementById('zero-depart');
     if (!zeroArrivee || !zeroDepart) return;
+    
+    // Vérifier si le mode RHT est activé
+    const zeroRhtChecked = !!document.getElementById('zero-rht-mode')?.checked;
+    
+    // Utiliser les plages RHT ou générales selon le mode
+    const arriveeMin = zeroRhtChecked ? rhtPlageArriveeMin : plageArriveeMin;
+    const arriveeMax = zeroRhtChecked ? rhtPlageArriveeMax : plageArriveeMax;
+    const departMin = zeroRhtChecked ? rhtPlageDepartMin : plageDepartMin;
+    const departMax = zeroRhtChecked ? rhtPlageDepartMax : plageDepartMax;
+    
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
         const [hh, mm] = h.split(':').map(Number);
@@ -1931,8 +2197,8 @@ function updateZeroPlages() {
     };
     const arriveeMins = toMinutes(zeroArrivee.value);
     const departMins = toMinutes(zeroDepart.value);
-    checkPlageZero(zeroArrivee, arriveeMins, plageArriveeMin, plageArriveeMax);
-    checkPlageZero(zeroDepart, departMins, plageDepartMin, plageDepartMax);
+    checkPlageZero(zeroArrivee, arriveeMins, arriveeMin, arriveeMax);
+    checkPlageZero(zeroDepart, departMins, departMin, departMax);
 }
 ['zero-arrivee','zero-depart'].forEach(id => {
     const el = document.getElementById(id);
@@ -2363,91 +2629,91 @@ function updateCalcPauseDurees() {
     const el = document.getElementById(id);
     if (el) safeAddEventListener(id, 'input', updateCalcPauseDurees);
 });
-// Adapter le calcul du module 1 pour prendre en compte le mode durée
-function calculerHeuresSupCalculette() {
+// FONCTION SUPPRIMÉE - Dupliquée et incorrecte, utilise la première définition plus haut
+// function calculerHeuresSupCalculette() {
     // Récupération des valeurs
-    const arrivee = calcArrivee ? calcArrivee.value : '';
-    const depart = calcDepart ? calcDepart.value : '';
+    // const arrivee = calcArrivee ? calcArrivee.value : '';
+    // const depart = calcDepart ? calcDepart.value : '';
     // Pause matin
-    let pause1DureeMin = null;
-    if (document.getElementById('calc-pause1-mode-duree')?.checked) {
-        const duree = document.getElementById('calc-pause1-duree')?.value;
-        if (/^\d{2}:\d{2}$/.test(duree)) {
-            const [hh, mm] = duree.split(':').map(Number);
-            pause1DureeMin = hh * 60 + mm;
-        }
-    } else {
-        const pause1Debut = calcPause1Debut ? calcPause1Debut.value : '';
-        const pause1Fin = calcPause1Fin ? calcPause1Fin.value : '';
-        const toMinutes = (h) => {
-            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-            const [hh, mm] = h.split(':').map(Number);
-            return hh * 60 + mm;
-        };
-        const debutMin = toMinutes(pause1Debut);
-        const finMin = toMinutes(pause1Fin);
-        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
-            pause1DureeMin = finMin - debutMin;
-        }
-    }
+    // let pause1DureeMin = null;
+    // if (document.getElementById('calc-pause1-mode-duree')?.checked) {
+    //     const duree = document.getElementById('calc-pause1-duree')?.value;
+    //     if (/^\d{2}:\d{2}$/.test(duree)) {
+    //         const [hh, mm] = duree.split(':').map(Number);
+    //         pause1DureeMin = hh * 60 + mm;
+    //     }
+    // } else {
+    //     const pause1Debut = calcPause1Debut ? calcPause1Debut.value : '';
+    //     const pause1Fin = calcPause1Fin ? calcPause1Fin.value : '';
+    //     const toMinutes = (h) => {
+    //         if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+    //         const [hh, mm] = h.split(':').map(Number);
+    //         return hh * 60 + mm;
+    //     };
+    //     const debutMin = toMinutes(pause1Debut);
+    //     const finMin = toMinutes(pause1Fin);
+    //     if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+    //         pause1DureeMin = finMin - debutMin;
+    //     }
+    // }
     // Pause midi
-    let pauseMidiDureeMin = null;
-    if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
-        const duree = document.getElementById('calc-pause-midi-duree')?.value;
-        if (/^\d{2}:\d{2}$/.test(duree)) {
-            const [hh, mm] = duree.split(':').map(Number);
-            pauseMidiDureeMin = hh * 60 + mm;
-        }
-    } else {
-        const pauseMidiDebut = calcPauseDebut ? calcPauseDebut.value : '';
-        const pauseMidiFin = calcPauseFin ? calcPauseFin.value : '';
-        const toMinutes = (h) => {
-            if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-            const [hh, mm] = h.split(':').map(Number);
-            return hh * 60 + mm;
-        };
-        const debutMin = toMinutes(pauseMidiDebut);
-        const finMin = toMinutes(pauseMidiFin);
-        if (debutMin !== null && finMin !== null && finMin >= debutMin) {
-            pauseMidiDureeMin = finMin - debutMin;
-        }
-    }
+    // let pauseMidiDureeMin = null;
+    // if (document.getElementById('calc-pause-midi-mode-duree')?.checked) {
+    //     const duree = document.getElementById('calc-pause-midi-duree')?.value;
+    //     if (/^\d{2}:\d{2}$/.test(duree)) {
+    //         const [hh, mm] = duree.split(':').map(Number);
+    //         pauseMidiDureeMin = hh * 60 + mm;
+    //     }
+    // } else {
+    //     const pauseMidiDebut = calcPauseDebut ? calcPauseDebut.value : '';
+    //     const pauseMidiFin = calcPauseFin ? calcPauseFin.value : '';
+    //     const toMinutes = (h) => {
+    //         if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+    //         const [hh, mm] = h.split(':').map(Number);
+    //         return hh * 60 + mm;
+    //     };
+    //     const debutMin = toMinutes(pauseMidiDebut);
+    //     const finMin = toMinutes(pauseMidiFin);
+    //     if (debutMin !== null && finMin !== null && finMin >= debutMin) {
+    //         pauseMidiDureeMin = finMin - debutMin;
+    //     }
+    // }
     // Fonctions utilitaires
-    const toMinutes = (h) => {
-        if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
-        const [hh, mm] = h.split(':').map(Number);
-        return hh * 60 + mm;
-    };
+    // const toMinutes = (h) => {
+    //     if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
+    //     const [hh, mm] = h.split(':').map(Number);
+    //     return hh * 60 + mm;
+    // };
     // Conversion
-    const arriveeMin = toMinutes(arrivee);
-    const departMin = toMinutes(depart);
+    // const arriveeMin = toMinutes(arrivee);
+    // const departMin = toMinutes(depart);
     // Paramètres globaux
-    let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
-    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
-    let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
+    // let heuresJourMin = getHeuresJourMinutes ? getHeuresJourMinutes() : 450; // fallback 7h30
+    // let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    // let pauseMidiMin = (typeof getPauseMidiMin === 'function') ? getPauseMidiMin() : 30;
     // Calcul
-    if (
-        arriveeMin === null || departMin === null ||
-        pauseMidiDureeMin === null || pause1DureeMin === null
-    ) {
-        calcHeuresSup.textContent = '';
-        return;
-    }
-    let dureeTravail = departMin - arriveeMin;
+    // if (
+    //     arriveeMin === null || departMin === null ||
+    //     pauseMidiDureeMin === null || pause1DureeMin === null
+    // ) {
+    //     calcHeuresSup.textContent = '';
+    //     return;
+    // }
+    // let dureeTravail = departMin - arriveeMin;
     // Pause midi (toujours déduite, au moins le minimum)
-    let pauseMidi = pauseMidiDureeMin;
-    if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
-    dureeTravail -= pauseMidi;
+    // let pauseMidi = pauseMidiDureeMin;
+    // if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
+    // dureeTravail -= pauseMidi;
     // Pause matin : seul l'excédent > pause offerte est déduit
-    let pauseMatin = pause1DureeMin;
-    if (pauseMatin > pauseOfferteVal) {
-        dureeTravail -= (pauseMatin - pauseOfferteVal);
-    }
+    // let pauseMatin = pause1DureeMin;
+    // if (pauseMatin > pauseOfferteVal) {
+    //     dureeTravail -= (pauseMatin - pauseOfferteVal);
+    // }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
-    let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
-    calcHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
-    calcHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
-}
+    // let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
+    // calcHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
+    // calcHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
+// }
 // ... existing code ...
 
 // ... existing code ...
@@ -3189,6 +3455,14 @@ if (document.readyState === 'loading') {
     const saved = localStorage.getItem('zero_rht_mode') === 'true';
     rhtToggle.checked = saved;
     midiGroup.style.display = saved ? 'none' : 'flex';
+    // S'assurer que la mise en forme couleur des plages est correcte au chargement
+    if (typeof updateZeroPlages === 'function') {
+        // Appel après restauration de l'état du toggle
+        setTimeout(() => {
+            updateZeroPlages();
+            if (typeof calculerHeuresSupZero === 'function') calculerHeuresSupZero();
+        }, 0);
+    }
     rhtToggle.addEventListener('change', function() {
         const enabled = rhtToggle.checked;
         midiGroup.style.display = enabled ? 'none' : 'flex';
@@ -3217,4 +3491,134 @@ if (document.readyState === 'loading') {
         }
     });
 })();
+// ... existing code ...
+
+// ... existing code ...
+function isDateInRHT(dateStr) {
+    const enabled = localStorage.getItem('rht_enabled') === 'true';
+    if (!enabled) return false;
+    const deb = localStorage.getItem('rht_debut') || '';
+    const fin = localStorage.getItem('rht_fin') || '';
+    if (!/^\d{2}\.\d{2}\.\d{2}$/.test(deb) || !/^\d{2}\.\d{2}\.\d{2}$/.test(fin)) return false;
+    function toISO(jjmmaaaa2) {
+        const [jj, mm, aa] = jjmmaaaa2.split('.');
+        const yyyy = parseInt(aa, 10) + 2000;
+        return `${yyyy}-${mm}-${jj}`;
+    }
+    const d = dateStr;
+    const start = toISO(deb);
+    const end = toISO(fin);
+    return d >= start && d <= end;
+}
+
+function getHeuresJourMinutesEffective(dateStr) {
+    // Si RHT actif et date dans plage: utiliser param RHT; sinon valeur standard
+    if (isDateInRHT(dateStr)) {
+        const rhtDecStr = localStorage.getItem('rht_heures_dec');
+        let val = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : null;
+        if (isNaN(val) || val === null) val = parseFloat(localStorage.getItem('heuresJour')) || 7.5;
+        return Math.round(val * 60);
+    }
+    return (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : Math.round(((parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60));
+}
+function getPauseOfferteEffective(dateStr) {
+    if (isDateInRHT(dateStr)) {
+        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+        if (!isNaN(rhtPause)) return rhtPause;
+    }
+    return parseInt(localStorage.getItem('pauseOfferte')) || 15;
+}
+
+// Accumulateurs RHT
+function resetRHTAccumulators() {
+    // Réinitialise uniquement les accumulateurs volatils de la vue (pas persistant cumulatif)
+    sessionStorage.setItem('rht_heures_perdues_view', '0');
+    sessionStorage.setItem('rht_heures_supp_view', '0');
+}
+function addRHTPerdues(hours) {
+    // Accumule pour l'affichage courant (mois affiché) pour éviter l'incrément au refresh
+    let curView = parseFloat(sessionStorage.getItem('rht_heures_perdues_view')) || 0;
+    curView += hours;
+    sessionStorage.setItem('rht_heures_perdues_view', curView.toString());
+}
+function addRHTSupp(hours) {
+    let curView = parseFloat(sessionStorage.getItem('rht_heures_supp_view')) || 0;
+    curView += hours;
+    sessionStorage.setItem('rht_heures_supp_view', curView.toString());
+}
+
+// Adapter afficherJours pour RHT
+const _afficherJours = afficherJours;
+afficherJours = function() {
+    // Reset des accumulateurs avant recalcul
+    resetRHTAccumulators();
+    // Appel original pour préparer DOM, mais on recalculera en tenant compte RHT
+    _afficherJours();
+    // Recalcul des totaux et mise à jour des compteurs RHT
+    const moisStr = String(currentMonth + 1).padStart(2, '0');
+    const anneeStr = String(currentYear);
+    const joursAffiches = jours.filter(j => {
+        const [y, m] = j.date.split('-');
+        return y === anneeStr && m === moisStr;
+    });
+    let totalEcart = 0;
+    joursAffiches.forEach(jour => {
+        const inRHT = isDateInRHT(jour.date);
+        // heures à faire du jour en minutes
+        const heuresJourMinEff = getHeuresJourMinutesEffective(jour.date);
+        // pause offerte effective
+        const pauseOffEff = getPauseOfferteEffective(jour.date);
+        // Recalcul des heures travaillées (utilise la pause offerte RHT et ignore le minimum midi en RHT)
+        let heuresTrav = 0;
+        if (inRHT) {
+            heuresTrav = parseFloat(calculerHeuresAvecPause(
+                jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                jour.pausesAvant, jour.pausesApres,
+                pauseOffEff,
+                true
+            ));
+        } else {
+            heuresTrav = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+        }
+        const ecartHeures = heuresTrav - (heuresJourMinEff/60);
+        if (inRHT) {
+            // Accumule sur le mois courrant seulement, sans double comptage
+            if (ecartHeures > 0) addRHTPerdues(ecartHeures);
+            else if (ecartHeures < 0) addRHTSupp(Math.abs(ecartHeures));
+        } else {
+            totalEcart += ecartHeures;
+        }
+    });
+    const totalEcartDiv = document.getElementById('total-ecart');
+    if (totalEcartDiv) {
+        const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
+        totalEcartDiv.innerHTML = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
+    }
+    updateCompteursAbsences();
+};
+
+// Met à jour aussi les compteurs RHT perdus/supplémentaire
+function updateCompteursAbsences() {
+    const compteurVac = document.getElementById('compteur-vacances');
+    const compteurRTT = document.getElementById('compteur-rtt');
+    const compteurRHT = document.getElementById('compteur-rht');
+    const compteurRTTHeures = document.getElementById('compteur-rtt-heures');
+    const compteurRHTHeures = document.getElementById('compteur-rht-heures');
+    let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
+    let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
+    let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+    // Heures à faire par jour (en minutes)
+    let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60;
+    let heuresJour = minutesJour / 60;
+    if (compteurVac) compteurVac.textContent = joursVacances.length;
+    if (compteurRTT) compteurRTT.textContent = joursRTT.length;
+    if (compteurRHT) compteurRHT.textContent = joursRHT.length;
+    if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
+    if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
+    // RHT perdus/supplémentaire
+    const perduesEl = document.getElementById('compteur-rht-perdues');
+    const suppEl = document.getElementById('compteur-rht-supp');
+    if (perduesEl) perduesEl.textContent = (parseFloat(sessionStorage.getItem('rht_heures_perdues_view')) || 0).toFixed(2).replace('.', ',');
+    if (suppEl) suppEl.textContent = (parseFloat(sessionStorage.getItem('rht_heures_supp_view')) || 0).toFixed(2).replace('.', ',');
+}
 // ... existing code ...

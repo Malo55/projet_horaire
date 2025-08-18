@@ -1,10 +1,10 @@
 /* Feuille de style principale */ 
 .ecart-positif {
-    color: green;
+    color: #4caf50;
     font-weight: bold;
 }
 .ecart-negatif {
-    color: red;
+    color: #f44336;
     font-weight: bold;
 }
 .btn-supprimer {
@@ -362,4 +362,18 @@ body {
 #zero-module #zero-pause-debut,
 #zero-module #zero-pause-fin {
   width: 60px;
+} 
+.ecart-rht-perdues {
+    color: #ff9800;
+    font-weight: bold;
+}
+
+.ecart-rht-supp {
+    color: #9c27b0;
+    font-weight: bold;
+}
+
+.ecart-rht-ok {
+    color: #4caf50;
+    font-weight: bold;
 } 
