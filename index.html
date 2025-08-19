@@ -318,15 +318,19 @@
         <div class="modal" style="min-width: 400px;">
             <span class="modal-close" id="vacances-modal-close">&times;</span>
             <h2 style="text-align:center;">Gestion des vacances</h2>
-            <div style="display:flex; gap:12px; margin-bottom:8px; justify-content:center;">
+            <div style="display:flex; gap:12px; margin-bottom:8px; justify-content:center; flex-wrap:wrap;">
                 <button id="mode-conge" class="btn-mode-vac selected">Congés payés</button>
                 <button id="mode-rtt" class="btn-mode-vac">RTT</button>
                 <button id="mode-rht" class="btn-mode-vac">RHT</button>
+                <button id="mode-ferie" class="btn-mode-vac">Fériés</button>
+                <button id="mode-rattrape" class="btn-mode-vac">Jours rattrapés</button>
             </div>
-            <div style="margin-bottom:8px; font-size:0.95em;">
-                <span style="display:inline-block;width:18px;height:18px;background:#ffe082;border:2px solid #ffb300;margin-right:4px;vertical-align:middle;"></span> Congé payé
-                <span style="display:inline-block;width:18px;height:18px;background:#81d4fa;border:2px solid #0288d1;margin:0 4px 0 16px;vertical-align:middle;"></span> RTT
-                <span style="display:inline-block;width:18px;height:18px;background:#8e24aa;border:2px solid #4a148c;margin:0 4px 0 16px;vertical-align:middle;"></span> RHT
+            <div style="margin-bottom:8px; font-size:0.95em; display:flex; flex-wrap:wrap; gap:12px; justify-content:center;">
+                <span><span style="display:inline-block;width:18px;height:18px;background:#ffe082;border:2px solid #ffb300;margin-right:4px;vertical-align:middle;"></span> Congé payé</span>
+                <span><span style="display:inline-block;width:18px;height:18px;background:#81d4fa;border:2px solid #0288d1;margin-right:4px;vertical-align:middle;"></span> RTT</span>
+                <span><span style="display:inline-block;width:18px;height:18px;background:#8e24aa;border:2px solid #4a148c;margin-right:4px;vertical-align:middle;"></span> RHT</span>
+                <span><span style="display:inline-block;width:18px;height:18px;background:#555555;border:2px solid #333333;margin-right:4px;vertical-align:middle;"></span> Férié</span>
+                <span><span style="display:inline-block;width:18px;height:18px;background:#ffe082;border:2px solid #d32f2f;margin-right:4px;vertical-align:middle;"></span> Jour rattrapé</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; justify-content:center;">
                 <button id="vac-prev-year">&#8592;</button>

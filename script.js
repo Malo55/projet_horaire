@@ -17,6 +17,8 @@ const pauseOfferteInput = document.getElementById('pause-offerte-min');
 let jours = JSON.parse(localStorage.getItem('jours')) || [];
 let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
 let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
+let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
+let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
 let heuresJour = parseFloat(localStorage.getItem('heuresJour')) || 7.5;
 let pauseOfferte = parseInt(localStorage.getItem('pauseOfferte')) || 15;
 
@@ -1039,7 +1041,9 @@ let modeVac = 'conge';
 const btnModeConge = document.getElementById('mode-conge');
 const btnModeRTT = document.getElementById('mode-rtt');
 const btnModeRHT = document.getElementById('mode-rht');
-let modeVacances = 'conge'; // 'conge', 'rtt', 'rht'
+const btnModeFerie = document.getElementById('mode-ferie');
+const btnModeRattrape = document.getElementById('mode-rattrape');
+let modeVacances = 'conge'; // 'conge', 'rtt', 'rht', 'ferie', 'rattrape'
 let compteurRHT = 0;
 if (localStorage.getItem('compteurRHT')) compteurRHT = parseInt(localStorage.getItem('compteurRHT'));
 
@@ -1047,10 +1051,14 @@ function updateVacModeButtons() {
     if (btnModeConge) btnModeConge.classList.toggle('selected', modeVacances === 'conge');
     if (btnModeRTT) btnModeRTT.classList.toggle('selected', modeVacances === 'rtt');
     if (btnModeRHT) btnModeRHT.classList.toggle('selected', modeVacances === 'rht');
+    if (btnModeFerie) btnModeFerie.classList.toggle('selected', modeVacances === 'ferie');
+    if (btnModeRattrape) btnModeRattrape.classList.toggle('selected', modeVacances === 'rattrape');
 }
 if (btnModeConge) btnModeConge.onclick = function() { modeVacances = 'conge'; updateVacModeButtons(); };
 if (btnModeRTT) btnModeRTT.onclick = function() { modeVacances = 'rtt'; updateVacModeButtons(); };
 if (btnModeRHT) btnModeRHT.onclick = function() { modeVacances = 'rht'; updateVacModeButtons(); };
+if (btnModeFerie) btnModeFerie.onclick = function() { modeVacances = 'ferie'; updateVacModeButtons(); };
+if (btnModeRattrape) btnModeRattrape.onclick = function() { modeVacances = 'rattrape'; updateVacModeButtons(); };
 
 // Lors de la validation d'un jour RHT, incrémenter le compteur
 const btnVacValider = document.getElementById('vacances-modal-valider');
@@ -1070,6 +1078,8 @@ if (btnVacValider) {
 vacancesModalValider.addEventListener('click', function() {
     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
+    localStorage.setItem('joursFeries', JSON.stringify(joursFeries));
+    localStorage.setItem('joursRattrapes', JSON.stringify(joursRattrapes));
     vacancesModalBg.style.display = 'none';
     // Rafraîchit le calendrier principal et les compteurs après validation
     afficherJours();
@@ -1079,6 +1089,8 @@ vacancesModalValider.addEventListener('click', function() {
 
 function renderCalendrierVacances(annee) {
     let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+    let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
+    let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
     calendrierVacancesDiv.innerHTML = '';
     for (let month = 0; month < 12; month++) {
         const moisDiv = document.createElement('div');
@@ -1136,6 +1148,8 @@ function renderCalendrierVacances(annee) {
                 if(joursVacances.includes(dateStr)) td.classList.add('jour-vacances');
                 if(joursRTT.includes(dateStr)) td.classList.add('jour-rtt');
                 if(joursRHT.includes(dateStr)) td.classList.add('jour-rht');
+                if(joursFeries.includes(dateStr)) td.classList.add('jour-ferie');
+                if(joursRattrapes.includes(dateStr)) td.classList.add('jour-rattrape');
                 // Marque les jours avec heures (comme calendrier principal)
                 const jourAvecHeures = jours && Array.isArray(jours) && jours.some(j => j.date === dateStr);
                 if (jourAvecHeures) {
@@ -1164,6 +1178,12 @@ function renderCalendrierVacances(annee) {
                         updateCompteursAbsences();
                         afficherJours();
                         return;
+                    } else if(joursFeries.includes(dateStr)) {
+                        joursFeries = joursFeries.filter(d => d !== dateStr);
+                        td.classList.remove('jour-ferie');
+                    } else if(joursRattrapes.includes(dateStr)) {
+                        joursRattrapes = joursRattrapes.filter(d => d !== dateStr);
+                        td.classList.remove('jour-rattrape');
                     } else {
                         if(modeVacances === 'conge') {
                             joursVacances.push(dateStr);
@@ -1181,10 +1201,18 @@ function renderCalendrierVacances(annee) {
                                 td.classList.remove('jour-rht');
                             }
                             localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
+                        } else if (modeVacances === 'ferie') {
+                            joursFeries.push(dateStr);
+                            td.classList.add('jour-ferie');
+                        } else if (modeVacances === 'rattrape') {
+                            joursRattrapes.push(dateStr);
+                            td.classList.add('jour-rattrape');
                         }
                     }
                     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
                     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
+                    localStorage.setItem('joursFeries', JSON.stringify(joursFeries));
+                    localStorage.setItem('joursRattrapes', JSON.stringify(joursRattrapes));
                     afficherJours();
                     updateCompteursAbsences();
                     majCalendrier();
@@ -1205,6 +1233,12 @@ function isJourVacances(dateStr) {
 }
 function isJourRTT(dateStr) {
     return joursRTT.includes(dateStr);
+}
+function isJourFerie(dateStr) {
+    return joursFeries.includes(dateStr);
+}
+function isJourRattrape(dateStr) {
+    return joursRattrapes.includes(dateStr);
 }
 function isJourRHT(dateStr) {
     // On considère qu'un jour RHT est un jour où le modeVacances était 'rht' lors de la pose
@@ -1235,6 +1269,12 @@ renderCalendrier = function(month, year) {
                 td.onclick = null;
             } else if(isJourRHT(dateStr)) {
                 td.classList.add('jour-rht');
+                td.onclick = null;
+            } else if(isJourFerie(dateStr)) {
+                td.classList.add('jour-ferie');
+                td.onclick = null;
+            } else if(isJourRattrape(dateStr)) {
+                td.classList.add('jour-rattrape');
                 td.onclick = null;
             }
             day++;
@@ -3370,42 +3410,26 @@ function isJourRHT(dateStr) {
     return joursRHT.includes(dateStr);
 }
 
-// On modifie ouvrirModal pour masquer les sections pause midi et pauses après midi en mode RHT
+// On modifie ouvrirModal pour garder tous les champs visibles même en mode RHT
 const oldOuvrirModal = ouvrirModal;
 ouvrirModal = function(dateStr = null) {
-    if (dateStr && (isJourVacances(dateStr) || isJourRTT(dateStr))) {
-        return; // Ne pas ouvrir le modal pour les jours vacances ou RTT
+    if (dateStr && (isJourVacances(dateStr) || isJourRTT(dateStr) || isJourFerie(dateStr) || isJourRattrape(dateStr))) {
+        return; // Ne pas ouvrir le modal pour les jours vacances, RTT, fériés ou rattrapés
     }
     
     // Appeler la fonction originale
     oldOuvrirModal(dateStr);
     
-    // Si c'est un jour RHT (phase 1 ou 2), masquer les sections pause midi et pauses après midi
-    if (dateStr && (isDateInRHT(dateStr) || isDateInRHTPhase1(dateStr))) {
-        const pauseMidiContainer = document.querySelector('#pause-midi-row').parentElement;
-        const pausesApresContainer = document.getElementById('pauses-apres-container');
-        
-        if (pauseMidiContainer) {
-            pauseMidiContainer.style.display = 'none';
-        }
-        if (pausesApresContainer) {
-            pausesApresContainer.style.display = 'none';
-        }
-        
-
-    } else {
-        // Si ce n'est pas un jour RHT, afficher toutes les sections
-        const pauseMidiContainer = document.querySelector('#pause-midi-row').parentElement;
-        const pausesApresContainer = document.getElementById('pauses-apres-container');
-        
-        if (pauseMidiContainer) {
-            pauseMidiContainer.style.display = 'flex';
-        }
-        if (pausesApresContainer) {
-            pausesApresContainer.style.display = 'block';
-        }
-        
-
+    // Tous les champs restent visibles, même en mode RHT phase 1 ou 2
+    // Les utilisateurs peuvent saisir leurs horaires normalement
+    const pauseMidiContainer = document.querySelector('#pause-midi-row').parentElement;
+    const pausesApresContainer = document.getElementById('pauses-apres-container');
+    
+    if (pauseMidiContainer) {
+        pauseMidiContainer.style.display = 'flex';
+    }
+    if (pausesApresContainer) {
+        pausesApresContainer.style.display = 'block';
     }
 }
 // Lors de la pose d'un jour RHT dans le calendrier vacances, on l'ajoute à joursRHT
@@ -3589,7 +3613,7 @@ if (document.readyState === 'loading') {
 // ... existing code ...
 
 // ... existing code ...
-// Module 2: RHT toggle masque/affiche la pause midi
+// Module 2: RHT toggle - garder tous les champs visibles
 (function() {
     const rhtToggle = document.getElementById('zero-rht-mode');
     const midiGroup = document.getElementById('zero-midi-group');
@@ -3597,7 +3621,8 @@ if (document.readyState === 'loading') {
     // Restauration
     const saved = localStorage.getItem('zero_rht_mode') === 'true';
     rhtToggle.checked = saved;
-    midiGroup.style.display = saved ? 'none' : 'flex';
+    // Garder le groupe midi toujours visible
+    midiGroup.style.display = 'flex';
     // S'assurer que la mise en forme couleur des plages est correcte au chargement
     if (typeof updateZeroPlages === 'function') {
         // Appel après restauration de l'état du toggle
@@ -3608,24 +3633,27 @@ if (document.readyState === 'loading') {
     }
     rhtToggle.addEventListener('change', function() {
         const enabled = rhtToggle.checked;
-        midiGroup.style.display = enabled ? 'none' : 'flex';
+        // Garder le groupe midi toujours visible même en mode RHT
+        midiGroup.style.display = 'flex';
         localStorage.setItem('zero_rht_mode', String(enabled));
     });
 })();
 // ... existing code ...
 
 // ... existing code ...
-// Module 1: RHT toggle masque/affiche la pause midi
+// Module 1: RHT toggle - garder tous les champs visibles
 (function() {
     const rhtToggle = document.getElementById('calc-rht-mode');
     const midiGroup = document.getElementById('calc-midi-group');
     if (!rhtToggle || !midiGroup) return;
     const saved = localStorage.getItem('calc_rht_mode') === 'true';
     rhtToggle.checked = saved;
-    midiGroup.style.display = saved ? 'none' : 'flex';
+    // Garder le groupe midi toujours visible
+    midiGroup.style.display = 'flex';
     rhtToggle.addEventListener('change', function() {
         const enabled = rhtToggle.checked;
-        midiGroup.style.display = enabled ? 'none' : 'flex';
+        // Garder le groupe midi toujours visible même en mode RHT
+        midiGroup.style.display = 'flex';
         localStorage.setItem('calc_rht_mode', String(enabled));
         // Recalculer si besoin
         if (typeof updateCalculateur === 'function') {

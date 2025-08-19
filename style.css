@@ -102,6 +102,18 @@ body {
     font-weight: bold;
     border: 2px solid #4a148c !important;
 }
+.jour-ferie {
+    background: #555555 !important;
+    color: #fff !important;
+    font-weight: bold;
+    border: 2px solid #333333 !important;
+}
+.jour-rattrape {
+    background: #ffe082 !important;
+    color: #b26a00 !important;
+    font-weight: bold;
+    border: 2px solid #d32f2f !important;
+}
 #calendrier-vacances {
     display: flex;
     flex-wrap: wrap;
@@ -204,7 +216,7 @@ body {
   border: none !important;
 }
 /* Les jours RTT et vacances gardent la même taille */
-.jour-vacances, .jour-rtt {
+.jour-vacances, .jour-rtt, .jour-ferie, .jour-rattrape {
   box-sizing: border-box;
 }
 
