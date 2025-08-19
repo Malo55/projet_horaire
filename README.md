@@ -1,5 +1,7 @@
 À MODIFIER :
-
+Ajouter congé rattrapé (CR), ferié payé (FP)
+Ajouter calendrier de ferié suisse neuchatel et peut etre d'autres
+Calcul du temps a rattraper etc
 Creation du mode RHT ph1, et 3
 
 Mode RHT ph1 : (01/07/2025)
