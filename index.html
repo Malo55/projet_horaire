@@ -12,6 +12,8 @@
         width: 56px;
         box-sizing: border-box;
       }
+      
+
       /* Exceptions pour les champs date et file */
       input[type="date"], input[type="file"] {
         width: auto;
@@ -71,6 +73,8 @@
         <div>CP : <span id="compteur-vacances">0</span></div>
         <div>RTT : <span id="compteur-rtt">0</span> (<span id="compteur-rtt-heures">0,00</span> h)</div>
         <div>RHT : <span id="compteur-rht">0</span> (<span id="compteur-rht-heures">0,00</span> h)</div>
+        <div>Heures perdues (année) : <span id="compteur-rht-perdues-annee">0,00</span> h</div>
+        <div>RHT supplémentaire (année) : <span id="compteur-rht-supp-annee">0,00</span> h</div>
         
         <h4 style="margin:16px 0 8px 0; color:#666; font-size:0.9em;">Variables mensuelles</h4>
         <div>Heures perdues : <span id="compteur-rht-perdues">0,00</span> h</div>
@@ -203,6 +207,12 @@
       </div>
       <div id="pause-module-3" style="margin: 0; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; min-width: 320px; display: flex; flex-direction: column; gap: 10px; grid-column: 1; grid-row: 2;">
         <h3 style="margin-top:0;">Module 3 : calculette pause</h3>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="pause3-rht-mode">
+            <span>RHT</span>
+          </label>
+        </div>
         <div id="pause3-lignes">
           <div class="pause3-ligne" style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
             <span>pause1</span>
@@ -439,39 +449,58 @@
                 
                 <!-- Section RHT (onglet) -->
                 <div id="parametres-rht-section" style="display:none; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px; max-width:420px; align-self:center; flex-direction:column; gap:10px;">
-                  <h3 style="margin:0; color:#333;">Paramètres RHT</h3>
-                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                    <input type="checkbox" id="param-rht-enabled">
-                    <span>Activer / désactiver</span>
-                  </label>
-                  <div style="display:flex; align-items:center; gap:12px;">
-                    <label style="min-width:90px;">Période :</label>
-                    <input type="text" id="param-rht-debut" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
-                    <span>à</span>
-                    <input type="text" id="param-rht-fin" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
-                  </div>
-                  <div style="display:flex; align-items:center; gap:12px;">
-                    <label style="min-width:90px;">Heures/jour :</label>
-                    <input type="number" id="param-rht-heures-jour-dec" step="0.01" style="width:90px; text-align:center;">
-                    <span style="font-weight:bold;">=</span>
-                    <input type="text" id="param-rht-heures-jour-hhmm" placeholder="HH:MM" style="width:80px; text-align:center;" inputmode="numeric" autocomplete="off">
-                  </div>
-                  <div style="display:flex; align-items:center; gap:12px;">
-                    <label style="min-width:90px;">Pause offerte :</label>
-                    <input type="number" id="param-rht-pause-offerte" min="0" step="1" style="width:100px; text-align:center;"> <span>min</span>
-                  </div>
-                  <div id="plage-horaires-rht-module" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; font-family: inherit; font-size: 1em; align-self: center;">
-                    <div style="display:flex; gap:12px; align-items:center;">
-                      <label for="rht-plage-arrivee-min" style="min-width:90px;">Plage d'arrivée (RHT) :</label>
-                      <input type="text" id="rht-plage-arrivee-min" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                  
+                  <!-- Paramètres RHT phase 1 -->
+                  <div style="background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px; margin-bottom:18px;">
+                    <h3 style="margin:0 0 12px 0; color:#333;">Paramètres RHT phase 1</h3>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:12px;">
+                      <input type="checkbox" id="param-rht-phase1-enabled">
+                      <span>Activer / désactiver</span>
+                    </label>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <label style="min-width:90px;">Période :</label>
+                      <input type="text" id="param-rht-phase1-debut" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
                       <span>à</span>
-                      <input type="text" id="rht-plage-arrivee-max" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                      <input type="text" id="param-rht-phase1-fin" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
                     </div>
-                    <div style="display:flex; gap:12px; align-items:center;">
-                      <label for="rht-plage-depart-min" style="min-width:90px;">Plage de départ (RHT) :</label>
-                      <input type="text" id="rht-plage-depart-min" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                  </div>
+                  
+                  <!-- Paramètres RHT phase 2 -->
+                  <div style="background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px;">
+                    <h3 style="margin:0 0 12px 0; color:#333;">Paramètres RHT phase 2</h3>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                      <input type="checkbox" id="param-rht-enabled">
+                      <span>Activer / désactiver</span>
+                    </label>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <label style="min-width:90px;">Période :</label>
+                      <input type="text" id="param-rht-debut" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
                       <span>à</span>
-                      <input type="text" id="rht-plage-depart-max" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                      <input type="text" id="param-rht-fin" placeholder="JJ.MM.AA" style="width:90px; text-align:center;" inputmode="numeric" autocomplete="off">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <label style="min-width:90px;">Heures/jour :</label>
+                      <input type="number" id="param-rht-heures-jour-dec" step="0.01" style="width:90px; text-align:center;">
+                      <span style="font-weight:bold;">=</span>
+                      <input type="text" id="param-rht-heures-jour-hhmm" placeholder="HH:MM" style="width:80px; text-align:center;" inputmode="numeric" autocomplete="off">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <label style="min-width:90px;">Pause offerte :</label>
+                      <input type="number" id="param-rht-pause-offerte" min="0" step="1" style="width:100px; text-align:center;"> <span>min</span>
+                    </div>
+                    <div id="plage-horaires-rht-module" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 18px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; font-family: inherit; font-size: 1em; align-self: center;">
+                      <div style="display:flex; gap:12px; align-items:center;">
+                        <label for="rht-plage-arrivee-min" style="min-width:90px;">Plage d'arrivée (RHT) :</label>
+                        <input type="text" id="rht-plage-arrivee-min" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                        <span>à</span>
+                        <input type="text" id="rht-plage-arrivee-max" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                      </div>
+                      <div style="display:flex; gap:12px; align-items:center;">
+                        <label for="rht-plage-depart-min" style="min-width:90px;">Plage de départ (RHT) :</label>
+                        <input type="text" id="rht-plage-depart-min" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                        <span>à</span>
+                        <input type="text" id="rht-plage-depart-max" placeholder="HH:MM" style="width:80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; font-family: inherit; text-align:center;" inputmode="numeric" autocomplete="off">
+                      </div>
                     </div>
                   </div>
                 </div>

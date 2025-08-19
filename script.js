@@ -411,7 +411,7 @@ function afficherJours() {
     joursAffiches.forEach((jour, idx) => {
         const isVac = isJourVacances(jour.date);
         const isRtt = isJourRTT(jour.date);
-        const isRht = (typeof isJourRHT === 'function' && isJourRHT(jour.date)) || isDateInRHT(jour.date);
+        const isRht = (typeof isJourRHT === 'function' && isJourRHT(jour.date)) || isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
         const isJourTravailleJour = isJourTravaille(jour.date);
         const tr = document.createElement('tr');
         
@@ -442,17 +442,17 @@ function afficherJours() {
         if (isVac || isRtt) {
             ecartAfficheDyn = (isRtt ? '-' : '') + heuresJourEff.toFixed(2);
             ecartClassDyn = 'ecart-negatif';
-        } else if (isRht) {
-            // Mode RHT : pas de libellé texte, uniquement la valeur; couleurs via classes
+        } else if (isRht || isDateInRHTPhase1(jour.date)) {
+            // Mode RHT (phase 1 ou 2) : pas de libellé texte, uniquement la valeur
             if (ecartDyn > 0) {
                 ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
-                ecartClassDyn = 'ecart-rht-perdues';
+                ecartClassDyn = 'ecart-positif'; // Vert pour positif
             } else if (ecartDyn < 0) {
                 ecartAfficheDyn = `${ecartDyn.toFixed(2)}`;
-                ecartClassDyn = 'ecart-rht-supp';
+                ecartClassDyn = 'ecart-negatif'; // Rouge pour négatif
             } else {
                 ecartAfficheDyn = '0.00';
-                ecartClassDyn = 'ecart-rht-ok';
+                ecartClassDyn = 'ecart-zero'; // Jaune pour zéro
             }
         } else {
             // Mode standard : affecte le total global
@@ -509,7 +509,7 @@ function afficherJours() {
         // Couleur plus claire selon le signe
         let ecartHHMMColor = '#8bc34a'; // vert clair par défaut
         if (ecartDyn < 0) ecartHHMMColor = '#ff8a80'; // rouge clair
-        else if (ecartDyn === 0) ecartHHMMColor = '#bdbdbd'; // gris clair
+        else if (ecartDyn === 0) ecartHHMMColor = '#ffb74d'; // jaune clair
         else ecartHHMMColor = '#8bc34a'; // vert clair
         tr.innerHTML = `
             <td>${formaterDate(jour.date)}</td>
@@ -585,9 +585,23 @@ form.addEventListener('submit', function(e) {
     e.preventDefault();
     const date = form.date.value;
     const arrivee = form['arrivee'].value;
-    const pauseDejDebut = form['pause-debut'].value;
-    const pauseDejFin = form['pause-fin'].value;
     const depart = form['depart'].value;
+    
+    // Vérifier si c'est un jour RHT (phase 1 ou 2)
+    const isRhtDay = isDateInRHT(date) || isDateInRHTPhase1(date);
+    
+    // Pour les jours RHT, on ne prend pas en compte pause midi et pauses après midi
+    let pauseDejDebut, pauseDejFin, pausesApresData;
+    if (isRhtDay) {
+        pauseDejDebut = '';
+        pauseDejFin = '';
+        pausesApresData = [];
+    } else {
+        pauseDejDebut = form['pause-debut'].value;
+        pauseDejFin = form['pause-fin'].value;
+        pausesApresData = JSON.parse(JSON.stringify(pausesApres));
+    }
+    
     // On ne gère plus pauseSupActive, pause2Debut, pause2Fin
     // On sauvegarde les pauses dynamiques
     const jourData = {
@@ -597,9 +611,9 @@ form.addEventListener('submit', function(e) {
         pauseDejFin,
         depart,
         pausesAvant: JSON.parse(JSON.stringify(pausesAvant)),
-        pausesApres: JSON.parse(JSON.stringify(pausesApres)),
-        heuresTravaillees: parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres)),
-        ecart: calculerEcart(parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres)), heuresJour)
+        pausesApres: pausesApresData,
+        heuresTravaillees: parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData)),
+        ecart: calculerEcart(parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData)), heuresJour)
     };
     const index = jours.findIndex(j => j.date === date);
     if (index !== -1) {
@@ -952,7 +966,10 @@ function formatHeureInput(input) {
         } else {
             input.value = '';
         }
-        updatePause3Total();
+        // Ne pas appeler updatePause3Total pour les champs RHT
+        if (typeof updatePause3Total === 'function' && !input.id.includes('rht-')) {
+            updatePause3Total();
+        }
     });
 }
 ['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin','arrivee','depart','pause-debut','pause-fin','pause2-debut','pause2-fin'].forEach(id => {
@@ -1120,10 +1137,20 @@ function renderCalendrierVacances(annee) {
                 if(joursRTT.includes(dateStr)) td.classList.add('jour-rtt');
                 if(joursRHT.includes(dateStr)) td.classList.add('jour-rht');
                 // Marque les jours avec heures (comme calendrier principal)
-                if (jours && Array.isArray(jours) && jours.some(j => j.date === dateStr)) {
+                const jourAvecHeures = jours && Array.isArray(jours) && jours.some(j => j.date === dateStr);
+                if (jourAvecHeures) {
                     td.classList.add('jour-rempli');
+                    // Désactiver le clic sur les jours avec heures
+                    td.style.cursor = 'not-allowed';
+                    td.style.opacity = '0.7';
+                    td.title = 'Jour avec horaires saisis - Impossible de modifier le statut';
                 }
+                
                 td.onclick = () => {
+                    // Empêcher le clic sur les jours avec heures
+                    if (jourAvecHeures) {
+                        return;
+                    }
                     if(joursVacances.includes(dateStr)) {
                         joursVacances = joursVacances.filter(d => d !== dateStr);
                         td.classList.remove('jour-vacances');
@@ -1364,17 +1391,23 @@ if (plageDepartMinInput && plageDepartMaxInput) {
         localStorage.setItem('plageDepartMax', plageDepartMax);
     });
 }
-// Restauration/écouteurs RHT
+// Restauration/écouteurs RHT avec formatage automatique
 if (rhtPlageArriveeMinInput && rhtPlageArriveeMaxInput) {
     rhtPlageArriveeMinInput.value = toHHMM(rhtPlageArriveeMin);
     rhtPlageArriveeMaxInput.value = toHHMM(rhtPlageArriveeMax);
     rhtPlageArriveeMin = toMinutes(rhtPlageArriveeMinInput.value);
     rhtPlageArriveeMax = toMinutes(rhtPlageArriveeMaxInput.value);
-    rhtPlageArriveeMinInput.addEventListener('input', function() {
+    
+    // Appliquer le formatage automatique
+    formatHeureInput(rhtPlageArriveeMinInput);
+    formatHeureInput(rhtPlageArriveeMaxInput);
+    
+    // Event listeners pour sauvegarder les valeurs
+    rhtPlageArriveeMinInput.addEventListener('blur', function() {
         rhtPlageArriveeMin = toMinutes(this.value);
         localStorage.setItem('rhtPlageArriveeMin', rhtPlageArriveeMin);
     });
-    rhtPlageArriveeMaxInput.addEventListener('input', function() {
+    rhtPlageArriveeMaxInput.addEventListener('blur', function() {
         rhtPlageArriveeMax = toMinutes(this.value);
         localStorage.setItem('rhtPlageArriveeMax', rhtPlageArriveeMax);
     });
@@ -1384,11 +1417,17 @@ if (rhtPlageDepartMinInput && rhtPlageDepartMaxInput) {
     rhtPlageDepartMaxInput.value = toHHMM(rhtPlageDepartMax);
     rhtPlageDepartMin = toMinutes(rhtPlageDepartMinInput.value);
     rhtPlageDepartMax = toMinutes(rhtPlageDepartMaxInput.value);
-    rhtPlageDepartMinInput.addEventListener('input', function() {
+    
+    // Appliquer le formatage automatique
+    formatHeureInput(rhtPlageDepartMinInput);
+    formatHeureInput(rhtPlageDepartMaxInput);
+    
+    // Event listeners pour sauvegarder les valeurs
+    rhtPlageDepartMinInput.addEventListener('blur', function() {
         rhtPlageDepartMin = toMinutes(this.value);
         localStorage.setItem('rhtPlageDepartMin', rhtPlageDepartMin);
     });
-    rhtPlageDepartMaxInput.addEventListener('input', function() {
+    rhtPlageDepartMaxInput.addEventListener('blur', function() {
         rhtPlageDepartMax = toMinutes(this.value);
         localStorage.setItem('rhtPlageDepartMax', rhtPlageDepartMax);
     });
@@ -2270,9 +2309,29 @@ function updatePause3Total() {
             total += (finMin - debutMin);
         }
     });
+    
     // Affichage total minutes + heures
     const totalHeures = (total / 60).toFixed(2);
-    let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    
+    // Vérifier si le mode RHT est activé
+    const pause3RhtChecked = !!document.getElementById('pause3-rht-mode')?.checked;
+    
+    // Déterminer la pause offerte selon le mode
+    let pauseOfferteVal;
+    if (pause3RhtChecked) {
+        // Mode RHT : utiliser les paramètres RHT du modal
+        const rhtEnabled = localStorage.getItem('rht_enabled') === 'true';
+        if (rhtEnabled) {
+            const rhtPauseOfferte = parseInt(localStorage.getItem('rht_pause_offerte'));
+            pauseOfferteVal = !isNaN(rhtPauseOfferte) ? rhtPauseOfferte : 0;
+        } else {
+            pauseOfferteVal = 0; // Par défaut 0 en mode RHT si pas configuré
+        }
+    } else {
+        // Mode normal : utiliser la pause offerte standard
+        pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+    }
+    
     let supp = total - pauseOfferteVal;
     let suppAff = '';
     if (supp !== 0) {
@@ -2280,7 +2339,9 @@ function updatePause3Total() {
     } else {
         suppAff = ` | <span id='pause3-supp-aff'>0 min (0.00 h)</span>`;
     }
+    
     document.getElementById('pause3-total').innerHTML = `${total} min (${totalHeures} h)${suppAff}`;
+    
     // Coloration dynamique
     const suppSpan = document.getElementById('pause3-supp-aff');
     if (suppSpan) {
@@ -2292,6 +2353,7 @@ function updatePause3Total() {
             suppSpan.style.color = 'black';
         }
     }
+    
     // Renumérote les labels
     document.querySelectorAll('#pause3-lignes .pause3-ligne').forEach((l, i) => {
         l.querySelector('span').textContent = (i+1).toString();
@@ -3308,13 +3370,43 @@ function isJourRHT(dateStr) {
     return joursRHT.includes(dateStr);
 }
 
-// On modifie ouvrirModal pour empêcher la saisie sur un jour RHT
+// On modifie ouvrirModal pour masquer les sections pause midi et pauses après midi en mode RHT
 const oldOuvrirModal = ouvrirModal;
 ouvrirModal = function(dateStr = null) {
-    if (dateStr && (isJourVacances(dateStr) || isJourRTT(dateStr) || isJourRHT(dateStr))) {
-        return; // Ne pas ouvrir le modal pour les jours vacances, RTT ou RHT
+    if (dateStr && (isJourVacances(dateStr) || isJourRTT(dateStr))) {
+        return; // Ne pas ouvrir le modal pour les jours vacances ou RTT
     }
+    
+    // Appeler la fonction originale
     oldOuvrirModal(dateStr);
+    
+    // Si c'est un jour RHT (phase 1 ou 2), masquer les sections pause midi et pauses après midi
+    if (dateStr && (isDateInRHT(dateStr) || isDateInRHTPhase1(dateStr))) {
+        const pauseMidiContainer = document.querySelector('#pause-midi-row').parentElement;
+        const pausesApresContainer = document.getElementById('pauses-apres-container');
+        
+        if (pauseMidiContainer) {
+            pauseMidiContainer.style.display = 'none';
+        }
+        if (pausesApresContainer) {
+            pausesApresContainer.style.display = 'none';
+        }
+        
+
+    } else {
+        // Si ce n'est pas un jour RHT, afficher toutes les sections
+        const pauseMidiContainer = document.querySelector('#pause-midi-row').parentElement;
+        const pausesApresContainer = document.getElementById('pauses-apres-container');
+        
+        if (pauseMidiContainer) {
+            pauseMidiContainer.style.display = 'flex';
+        }
+        if (pausesApresContainer) {
+            pausesApresContainer.style.display = 'block';
+        }
+        
+
+    }
 }
 // Lors de la pose d'un jour RHT dans le calendrier vacances, on l'ajoute à joursRHT
 // (à placer dans la logique de sélection du calendrier vacances)
@@ -3370,7 +3462,12 @@ if (document.readyState === 'loading') {
     if (tabGeneral) tabGeneral.addEventListener('click', showGeneral);
     if (tabRHT) tabRHT.addEventListener('click', showRHT);
 
-    // Champs RHT
+    // Champs RHT phase 1
+    const rhtPhase1Enabled = document.getElementById('param-rht-phase1-enabled');
+    const rhtPhase1Debut = document.getElementById('param-rht-phase1-debut');
+    const rhtPhase1Fin = document.getElementById('param-rht-phase1-fin');
+    
+    // Champs RHT phase 2
     const rhtEnabled = document.getElementById('param-rht-enabled');
     const rhtDebut = document.getElementById('param-rht-debut');
     const rhtFin = document.getElementById('param-rht-fin');
@@ -3387,6 +3484,8 @@ if (document.readyState === 'loading') {
             else input.value = v;
         });
     }
+    formatJJMMAAInput(rhtPhase1Debut);
+    formatJJMMAAInput(rhtPhase1Fin);
     formatJJMMAAInput(rhtDebut);
     formatJJMMAAInput(rhtFin);
 
@@ -3402,7 +3501,12 @@ if (document.readyState === 'loading') {
         return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
     }
 
-    // Restauration
+    // Restauration phase 1
+    if (rhtPhase1Enabled) rhtPhase1Enabled.checked = localStorage.getItem('param-rht-phase1-enabled') === 'true';
+    if (rhtPhase1Debut) rhtPhase1Debut.value = localStorage.getItem('param-rht-phase1-debut') || '';
+    if (rhtPhase1Fin) rhtPhase1Fin.value = localStorage.getItem('param-rht-phase1-fin') || '';
+    
+    // Restauration phase 2
     if (rhtEnabled) rhtEnabled.checked = localStorage.getItem('rht_enabled') === 'true';
     if (rhtDebut) rhtDebut.value = localStorage.getItem('rht_debut') || '';
     if (rhtFin) rhtFin.value = localStorage.getItem('rht_fin') || '';
@@ -3426,18 +3530,57 @@ if (document.readyState === 'loading') {
         });
     }
 
-    // Sauvegardes
+    // Sauvegardes phase 1
+    if (rhtPhase1Enabled) rhtPhase1Enabled.addEventListener('change', function() {
+        localStorage.setItem('param-rht-phase1-enabled', String(this.checked));
+        // Mettre à jour le tableau immédiatement
+        if (typeof afficherJours === 'function') {
+            afficherJours();
+        }
+    });
+    if (rhtPhase1Debut) rhtPhase1Debut.addEventListener('blur', function() {
+        localStorage.setItem('param-rht-phase1-debut', rhtPhase1Debut.value);
+        // Mettre à jour le tableau immédiatement
+        if (typeof afficherJours === 'function') {
+            afficherJours();
+        }
+    });
+    if (rhtPhase1Fin) rhtPhase1Fin.addEventListener('blur', function() {
+        localStorage.setItem('param-rht-phase1-fin', rhtPhase1Fin.value);
+        // Mettre à jour le tableau immédiatement
+        if (typeof afficherJours === 'function') {
+            afficherJours();
+        }
+    });
+    
+    // Sauvegardes phase 2
     if (rhtEnabled) rhtEnabled.addEventListener('change', function() {
         localStorage.setItem('rht_enabled', String(this.checked));
+        // Mettre à jour le tableau immédiatement
+        if (typeof afficherJours === 'function') {
+            afficherJours();
+        }
     });
     if (rhtDebut) rhtDebut.addEventListener('blur', function() {
         localStorage.setItem('rht_debut', rhtDebut.value);
+        // Mettre à jour le tableau immédiatement
+        if (typeof afficherJours === 'function') {
+            afficherJours();
+        }
     });
     if (rhtFin) rhtFin.addEventListener('blur', function() {
         localStorage.setItem('rht_fin', rhtFin.value);
+        // Mettre à jour le tableau immédiatement
+        if (typeof afficherJours === 'function') {
+            afficherJours();
+        }
     });
     if (rhtPauseOfferte) rhtPauseOfferte.addEventListener('input', function() {
         localStorage.setItem('rht_pause_offerte', rhtPauseOfferte.value);
+        // Mettre à jour le tableau immédiatement
+        if (typeof afficherJours === 'function') {
+            afficherJours();
+        }
     });
 
     // Par défaut on montre l'onglet Général au chargement
@@ -3511,6 +3654,23 @@ function isDateInRHT(dateStr) {
     return d >= start && d <= end;
 }
 
+function isDateInRHTPhase1(dateStr) {
+    const enabled = localStorage.getItem('param-rht-phase1-enabled') === 'true';
+    if (!enabled) return false;
+    const deb = localStorage.getItem('param-rht-phase1-debut') || '';
+    const fin = localStorage.getItem('param-rht-phase1-fin') || '';
+    if (!/^\d{2}\.\d{2}\.\d{2}$/.test(deb) || !/^\d{2}\.\d{2}\.\d{2}$/.test(fin)) return false;
+    function toISO(jjmmaaaa2) {
+        const [jj, mm, aa] = jjmmaaaa2.split('.');
+        const yyyy = parseInt(aa, 10) + 2000;
+        return `${yyyy}-${mm}-${jj}`;
+    }
+    const d = dateStr;
+    const start = toISO(deb);
+    const end = toISO(fin);
+    return d >= start && d <= end;
+}
+
 function getHeuresJourMinutesEffective(dateStr) {
     // Si RHT actif et date dans plage: utiliser param RHT; sinon valeur standard
     if (isDateInRHT(dateStr)) {
@@ -3552,48 +3712,53 @@ const _afficherJours = afficherJours;
 afficherJours = function() {
     // Reset des accumulateurs avant recalcul
     resetRHTAccumulators();
-    // Appel original pour préparer DOM, mais on recalculera en tenant compte RHT
+    
+    // Appel original pour préparer DOM et afficher le total standard
     _afficherJours();
-    // Recalcul des totaux et mise à jour des compteurs RHT
+    
+    // Maintenant on recalcule seulement les accumulateurs RHT pour le mois affiché
     const moisStr = String(currentMonth + 1).padStart(2, '0');
     const anneeStr = String(currentYear);
+    console.log('Recalcul RHT pour mois:', moisStr, 'année:', anneeStr, 'currentMonth:', currentMonth, 'currentYear:', currentYear);
+    
     const joursAffiches = jours.filter(j => {
         const [y, m] = j.date.split('-');
         return y === anneeStr && m === moisStr;
     });
-    let totalEcart = 0;
+    console.log('Jours filtrés pour ce mois:', joursAffiches.length, 'sur', jours.length, 'total');
+    
+    // Recalcul des accumulateurs RHT seulement
     joursAffiches.forEach(jour => {
         const inRHT = isDateInRHT(jour.date);
-        // heures à faire du jour en minutes
-        const heuresJourMinEff = getHeuresJourMinutesEffective(jour.date);
-        // pause offerte effective
-        const pauseOffEff = getPauseOfferteEffective(jour.date);
-        // Recalcul des heures travaillées (utilise la pause offerte RHT et ignore le minimum midi en RHT)
-        let heuresTrav = 0;
-        if (inRHT) {
-            heuresTrav = parseFloat(calculerHeuresAvecPause(
+        const inRHTPhase1 = isDateInRHTPhase1(jour.date);
+        
+        if (inRHT || inRHTPhase1) {
+            // heures à faire du jour en minutes
+            const heuresJourMinEff = getHeuresJourMinutesEffective(jour.date);
+            // pause offerte effective
+            const pauseOffEff = getPauseOfferteEffective(jour.date);
+            // Recalcul des heures travaillées (utilise la pause offerte RHT et ignore le minimum midi en RHT)
+            let heuresTrav = parseFloat(calculerHeuresAvecPause(
                 jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
                 jour.pausesAvant, jour.pausesApres,
                 pauseOffEff,
                 true
             ));
-        } else {
-            heuresTrav = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
-        }
-        const ecartHeures = heuresTrav - (heuresJourMinEff/60);
-        if (inRHT) {
-            // Accumule sur le mois courrant seulement, sans double comptage
-            if (ecartHeures > 0) addRHTPerdues(ecartHeures);
-            else if (ecartHeures < 0) addRHTSupp(Math.abs(ecartHeures));
-        } else {
-            totalEcart += ecartHeures;
+            const ecartHeures = heuresTrav - (heuresJourMinEff/60);
+            
+            if (inRHTPhase1) {
+                // Phase 1 RHT : toutes les heures vont dans les compteurs RHT du dashboard
+                if (ecartHeures > 0) addRHTPerdues(ecartHeures);
+                else if (ecartHeures < 0) addRHTSupp(Math.abs(ecartHeures));
+            } else if (inRHT) {
+                // Phase 2 RHT : comportement normal
+                if (ecartHeures > 0) addRHTPerdues(ecartHeures);
+                else if (ecartHeures < 0) addRHTSupp(Math.abs(ecartHeures));
+            }
         }
     });
-    const totalEcartDiv = document.getElementById('total-ecart');
-    if (totalEcartDiv) {
-        const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
-        totalEcartDiv.innerHTML = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
-    }
+    
+    // Mettre à jour les compteurs RHT
     updateCompteursAbsences();
 };
 
@@ -3615,10 +3780,77 @@ function updateCompteursAbsences() {
     if (compteurRHT) compteurRHT.textContent = joursRHT.length;
     if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
-    // RHT perdus/supplémentaire
+    // RHT perdus/supplémentaire mensuels
     const perduesEl = document.getElementById('compteur-rht-perdues');
     const suppEl = document.getElementById('compteur-rht-supp');
     if (perduesEl) perduesEl.textContent = (parseFloat(sessionStorage.getItem('rht_heures_perdues_view')) || 0).toFixed(2).replace('.', ',');
     if (suppEl) suppEl.textContent = (parseFloat(sessionStorage.getItem('rht_heures_supp_view')) || 0).toFixed(2).replace('.', ',');
+    
+    // RHT perdus/supplémentaire annuels
+    const perduesAnneeEl = document.getElementById('compteur-rht-perdues-annee');
+    const suppAnneeEl = document.getElementById('compteur-rht-supp-annee');
+    
+    if (perduesAnneeEl || suppAnneeEl) {
+        let totalPerduesAnnee = 0;
+        let totalSuppAnnee = 0;
+        
+        // Parcourir tous les jours pour calculer les totaux annuels
+        jours.forEach(jour => {
+            const inRHT = isDateInRHT(jour.date);
+            const inRHTPhase1 = isDateInRHTPhase1(jour.date);
+            
+            if (inRHT || inRHTPhase1) {
+                // heures à faire du jour en minutes
+                const heuresJourMinEff = getHeuresJourMinutesEffective(jour.date);
+                // pause offerte effective
+                const pauseOffEff = getPauseOfferteEffective(jour.date);
+                // Calcul des heures travaillées
+                let heuresTrav = parseFloat(calculerHeuresAvecPause(
+                    jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                    jour.pausesAvant, jour.pausesApres,
+                    pauseOffEff,
+                    true
+                ));
+                const ecartHeures = heuresTrav - (heuresJourMinEff/60);
+                
+                if (ecartHeures > 0) {
+                    totalPerduesAnnee += ecartHeures;
+                } else if (ecartHeures < 0) {
+                    totalSuppAnnee += Math.abs(ecartHeures);
+                }
+            }
+        });
+        
+        // Afficher les totaux annuels
+        if (perduesAnneeEl) perduesAnneeEl.textContent = totalPerduesAnnee.toFixed(2).replace('.', ',');
+        if (suppAnneeEl) suppAnneeEl.textContent = totalSuppAnnee.toFixed(2).replace('.', ',');
+    }
 }
-// ... existing code ...
+
+// Module 3: RHT toggle pour le mode RHT
+(function() {
+    const rhtToggle = document.getElementById('pause3-rht-mode');
+    if (!rhtToggle) return;
+    
+    // Restauration de l'état sauvegardé
+    const saved = localStorage.getItem('pause3_rht_mode') === 'true';
+    rhtToggle.checked = saved;
+    
+    // Mettre à jour l'affichage initial
+    if (typeof updatePause3Total === 'function') {
+        setTimeout(() => {
+            updatePause3Total();
+        }, 0);
+    }
+    
+    // Gestion du changement d'état
+    rhtToggle.addEventListener('change', function() {
+        const enabled = this.checked;
+        localStorage.setItem('pause3_rht_mode', String(enabled));
+        
+        // Mettre à jour l'affichage
+        if (typeof updatePause3Total === 'function') {
+            updatePause3Total();
+        }
+    });
+})();
