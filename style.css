@@ -71,6 +71,7 @@ body {
     cursor: pointer;
     background: #fff;
     transition: background 0.2s;
+    box-sizing: border-box !important;
 }
 .calendrier-table td:hover {
     background: #e0f7fa;
@@ -89,30 +90,35 @@ body {
     color: #b26a00 !important;
     font-weight: bold;
     border: 2px solid #ffb300 !important;
+    box-sizing: border-box !important;
 }
 .jour-rtt {
     background: #81d4fa !important;
     color: #01579b !important;
     font-weight: bold;
     border: 2px solid #0288d1 !important;
+    box-sizing: border-box !important;
 }
 .jour-rht {
     background: #8e24aa !important;
     color: #fff !important;
     font-weight: bold;
     border: 2px solid #4a148c !important;
+    box-sizing: border-box !important;
 }
 .jour-ferie {
     background: #555555 !important;
     color: #fff !important;
     font-weight: bold;
     border: 2px solid #333333 !important;
+    box-sizing: border-box !important;
 }
 .jour-rattrape {
     background: #ffe082 !important;
     color: #b26a00 !important;
     font-weight: bold;
     border: 2px solid #d32f2f !important;
+    box-sizing: border-box !important;
 }
 #calendrier-vacances {
     display: flex;
@@ -141,6 +147,7 @@ body {
     cursor: pointer;
     background: #fff;
     transition: background 0.2s;
+    box-sizing: border-box !important;
 }
 .calendrier-mois-vacances td:hover {
     background: #e0f7fa;
@@ -219,6 +226,10 @@ body {
 .jour-vacances, .jour-rtt, .jour-ferie, .jour-rattrape {
   box-sizing: border-box;
 }
+
+
+
+
 
 /* Styles pour les jours non travaillés (grisés) */
 .jour-non-travaille {

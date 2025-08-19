@@ -188,6 +188,8 @@ function renderCalendrier(month, year) {
     const table = document.createElement('table');
     table.className = 'calendrier-table';
     table.style.width = '420px';
+    table.style.borderSpacing = '1px';
+    table.style.borderCollapse = 'separate';
     const thead = document.createElement('thead');
     thead.innerHTML = '<tr><th style="width:36px; border:none; background:none; padding:0;"></th><th>Lu</th><th>Ma</th><th>Me</th><th>Je</th><th>Ve</th><th>Sa</th><th>Di</th></tr>';
     table.appendChild(thead);
@@ -1104,6 +1106,8 @@ function renderCalendrierVacances(annee) {
         moisDiv.appendChild(titre);
         const table = document.createElement('table');
         table.className = 'table-vacances';
+        table.style.borderSpacing = '0.5px';
+        table.style.borderCollapse = 'separate';
         const thead = document.createElement('thead');
         thead.innerHTML = '<tr><th></th><th>Lu</th><th>Ma</th><th>Me</th><th>Je</th><th>Ve</th><th>Sa</th><th>Di</th></tr>';
         table.appendChild(thead);
