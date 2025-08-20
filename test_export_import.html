@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Export/Import Excel avec Backup Jours Posés</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; border-radius: 5px; border: none; background: #007bff; color: white; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .data-display { background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Export/Import Excel avec Backup des Jours Posés</h1>
+    
+    <div class="test-section info">
+        <h2>📋 Fonctionnalités testées</h2>
+        <ul>
+            <li><strong>Export Excel Année</strong> : Crée un fichier avec une feuille par mois + feuille de backup</li>
+            <li><strong>Export Excel Mois</strong> : Crée un fichier avec une feuille du mois + feuille de backup</li>
+            <li><strong>Feuille de Backup</strong> : Contient tous les jours posés (CP, RTT, RHT, Fériés, Rattrapés)</li>
+            <li><strong>Import Excel</strong> : Récupère les horaires ET les jours posés depuis le backup</li>
+            <li><strong>Nommage intelligent</strong> : Feuilles avec "-RHT" si RHT actif dans le mois</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔧 Configuration des données de test</h2>
+        <p>Avant de tester, configurez quelques jours posés dans le modal de vacances :</p>
+        <ol>
+            <li>Ouvrez le modal de vacances (bouton "Vacances")</li>
+            <li>Posez quelques congés payés, RTT, RHT, fériés ou jours rattrapés</li>
+            <li>Saisissez quelques horaires sur certains jours</li>
+            <li>Testez ensuite les exports</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h2>📤 Test des Exports</h2>
+        <button onclick="testExportAnnee()">Export Excel Année</button>
+        <button onclick="testExportMois()">Export Excel Mois</button>
+        <p><em>Vérifiez que les fichiers Excel contiennent bien :</em></p>
+        <ul>
+            <li>Une feuille par mois (avec "-RHT" si applicable)</li>
+            <li>Une feuille "Backup_Jours_Posés" avec tous les jours posés</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>📥 Test de l'Import</h2>
+        <p><em>Pour tester l'import :</em></p>
+        <ol>
+            <li>Supprimez quelques jours posés dans le modal de vacances</li>
+            <li>Importez le fichier Excel exporté précédemment</li>
+            <li>Vérifiez que les jours posés sont restaurés</li>
+        </ol>
+        <button onclick="testImport()">Importer un fichier Excel</button>
+        <input type="file" id="import-test" accept=".xlsx, .xls" style="display:none;">
+    </div>
+    
+    <div class="test-section">
+        <h2>📊 État actuel des données</h2>
+        <div class="data-display" id="current-data">
+            Chargement des données...
+        </div>
+        <button onclick="refreshData()">Actualiser</button>
+    </div>
+    
+    <div class="test-section success">
+        <h2>✅ Points de vérification</h2>
+        <ul>
+            <li><strong>Export</strong> : Les feuilles sont-elles nommées correctement ?</li>
+            <li><strong>Backup</strong> : La feuille "Backup_Jours_Posés" contient-elle tous les types de jours ?</li>
+            <li><strong>Import</strong> : Les jours posés sont-ils restaurés après suppression + import ?</li>
+            <li><strong>RHT</strong> : Les calculs d'écart sont-ils mis à jour selon les paramètres RHT ?</li>
+        </ul>
+    </div>
+
+    <script>
+        // Fonction pour actualiser l'affichage des données
+        function refreshData() {
+            const joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
+            const joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
+            const joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+            const joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
+            const joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
+            const jours = JSON.parse(localStorage.getItem('jours')) || [];
+            
+            const dataDisplay = document.getElementById('current-data');
+            dataDisplay.innerHTML = `
+                <strong>Jours posés :</strong><br>
+                • Congés payés : ${joursVacances.length} jour(s)<br>
+                • RTT : ${joursRTT.length} jour(s)<br>
+                • RHT : ${joursRHT.length} jour(s)<br>
+                • Fériés : ${joursFeries.length} jour(s)<br>
+                • Rattrapés : ${joursRattrapes.length} jour(s)<br><br>
+                <strong>Jours avec horaires :</strong> ${jours.length} jour(s)<br>
+                <strong>Dernière mise à jour :</strong> ${new Date().toLocaleString()}
+            `;
+        }
+        
+        // Test de l'export année
+        function testExportAnnee() {
+            alert('Cliquez sur "Export Excel année" dans l\'application principale pour tester');
+        }
+        
+        // Test de l'export mois
+        function testExportMois() {
+            alert('Cliquez sur "Export Excel mois" dans l\'application principale pour tester');
+        }
+        
+        // Test de l'import
+        function testImport() {
+            document.getElementById('import-test').click();
+        }
+        
+        // Gestion de l'import de test
+        document.getElementById('import-test').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                alert(`Fichier sélectionné : ${file.name}\n\nPour tester l'import complet, utilisez le bouton "Importer un fichier Excel" dans l'application principale.`);
+            }
+        });
+        
+        // Actualiser les données au chargement
+        document.addEventListener('DOMContentLoaded', refreshData);
+    </script>
+</body>
+</html>

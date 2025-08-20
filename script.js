@@ -856,6 +856,57 @@ safeAddEventListener('export-excel', 'click', function() {
         const sheetName = hasRHTInMonth ? `${moisStr}.${anneeStr.slice(2)}-RHT` : `${moisStr}.${anneeStr.slice(2)}`;
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
+    
+    // Ajout de la feuille de backup des jours posés
+    const backupData = [];
+    backupData.push(['Date', 'Type', 'Description']);
+    
+    // Récupérer tous les jours posés de l'année
+    const joursVacancesAnnee = joursVacances.filter(dateStr => dateStr.startsWith(anneeStr + '-'));
+    const joursRTTAnnee = joursRTT.filter(dateStr => dateStr.startsWith(anneeStr + '-'));
+    const joursRHTAnnee = joursRHT.filter(dateStr => dateStr.startsWith(anneeStr + '-'));
+    const joursFeriesAnnee = joursFeries.filter(dateStr => dateStr.startsWith(anneeStr + '-'));
+    const joursRattrapesAnnee = joursRattrapes.filter(dateStr => dateStr.startsWith(anneeStr + '-'));
+    
+    // Ajouter les congés payés
+    joursVacancesAnnee.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'Congé payé', 'CP']);
+    });
+    
+    // Ajouter les RTT
+    joursRTTAnnee.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'RTT', 'RTT']);
+    });
+    
+    // Ajouter les RHT
+    joursRHTAnnee.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'RHT', 'RHT']);
+    });
+    
+    // Ajouter les jours fériés
+    joursFeriesAnnee.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'Férié', 'Férié']);
+    });
+    
+    // Ajouter les jours rattrapés
+    joursRattrapesAnnee.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'Jour rattrapé', 'Rattrapé']);
+    });
+    
+    // Créer la feuille de backup
+    const wsBackup = XLSX.utils.aoa_to_sheet(backupData);
+    XLSX.utils.book_append_sheet(wb, wsBackup, 'Backup_Jours_Posés');
+    
     // Export du fichier (nom inchangé, seules les feuilles sont renommées)
     XLSX.writeFile(wb, `horaires_${anneeStr}.xlsx`);
 });
@@ -880,6 +931,59 @@ if (importInput && importExcelBtn) {
                 const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
                 if (rows.length < 2) return; // pas de données
                 const header = rows[0];
+                
+                // Traitement spécial pour la feuille de backup des jours posés
+                if (sheetName === 'Backup_Jours_Posés') {
+                    // Traiter la feuille de backup des jours posés
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row[0] || !row[1]) continue; // Date et Type requis
+                        
+                        const dateExcel = row[0];
+                        const typeJour = row[1];
+                        
+                        // Convertir la date JJ.MM.AA => AAAA-MM-JJ
+                        if (typeof dateExcel === 'string' && dateExcel.includes('.')) {
+                            let [jj, mm, aa] = dateExcel.split('.');
+                            let yyyy = (aa.length === 2 ? '20' + aa : aa);
+                            let dateStr = `${yyyy}-${mm}-${jj}`;
+                            
+                            // Ajouter le jour selon son type
+                            if (typeJour === 'Congé payé' || typeJour === 'CP') {
+                                if (!joursVacances.includes(dateStr)) {
+                                    joursVacances.push(dateStr);
+                                }
+                            } else if (typeJour === 'RTT') {
+                                if (!joursRTT.includes(dateStr)) {
+                                    joursRTT.push(dateStr);
+                                }
+                            } else if (typeJour === 'RHT') {
+                                if (!joursRHT.includes(dateStr)) {
+                                    joursRHT.push(dateStr);
+                                }
+                            } else if (typeJour === 'Férié') {
+                                if (!joursFeries.includes(dateStr)) {
+                                    joursFeries.push(dateStr);
+                                }
+                            } else if (typeJour === 'Jour rattrapé' || typeJour === 'Rattrapé') {
+                                if (!joursRattrapes.includes(dateStr)) {
+                                    joursRattrapes.push(dateStr);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Sauvegarder les jours posés récupérés
+                    localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
+                    localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
+                    localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
+                    localStorage.setItem('joursFeries', JSON.stringify(joursFeries));
+                    localStorage.setItem('joursRattrapes', JSON.stringify(joursRattrapes));
+                    
+                    return; // Passer à la feuille suivante
+                }
+                
+                // Traitement normal pour les feuilles d'horaires
                 // Indices des colonnes dynamiques
                 const idxDate = header.indexOf('Date');
                 const idxArrivee = header.indexOf('Arrivée');
@@ -888,6 +992,10 @@ if (importInput && importExcelBtn) {
                 const idxDepart = header.indexOf('Départ');
                 const idxHeuresTrav = header.indexOf('Heures travaillées');
                 const idxEcart = header.indexOf('Écart');
+                
+                // Vérifier que c'est bien une feuille d'horaires (doit avoir au moins Date et Arrivée)
+                if (idxDate === -1 || idxArrivee === -1) return;
+                
                 // Pauses avant
                 let idxAvantDebuts = [], idxAvantFins = [];
                 for (let i = 0; i < header.length; i++) {
@@ -900,6 +1008,7 @@ if (importInput && importExcelBtn) {
                     if (/^Pause après (\d+) début$/.test(header[i])) idxApresDebuts.push(i);
                     if (/^Pause après (\d+) fin$/.test(header[i])) idxApresFins.push(i);
                 }
+                
                 // Pour chaque ligne de jour
                 for (let i = 1; i < rows.length; i++) {
                     const row = rows[i];
@@ -909,12 +1018,14 @@ if (importInput && importExcelBtn) {
                         (!row[idxArrivee] || String(row[idxArrivee]).trim() === '') &&
                         (!row[idxDepart] || String(row[idxDepart]).trim() === '')
                     ) continue;
+                    
                     // Date au format JJ.MM.AA => AAAA-MM-JJ
                     let dateExcel = row[idxDate];
                     if (!dateExcel || typeof dateExcel !== 'string') continue;
                     let [jj, mm, aa] = dateExcel.split('.');
                     let yyyy = (aa.length === 2 ? '20' + aa : aa);
                     let dateStr = `${yyyy}-${mm}-${jj}`;
+                    
                     // Pauses avant
                     let pausesAvant = [];
                     for (let k = 0; k < idxAvantDebuts.length; k++) {
@@ -929,9 +1040,11 @@ if (importInput && importExcelBtn) {
                         let fin = row[idxApresFins[k]] || '';
                         if (debut || fin) pausesApres.push({debut, fin});
                     }
+                    
                     // Heures travaillées et écart (x,xx)
                     let heuresTrav = row[idxHeuresTrav] ? parseFloat(String(row[idxHeuresTrav]).replace(',', '.')) : 0;
                     let ecart = row[idxEcart] ? parseFloat(String(row[idxEcart]).replace(',', '.')) : 0;
+                    
                     // Création de l'objet jour
                     let jour = {
                         date: dateStr,
@@ -944,6 +1057,7 @@ if (importInput && importExcelBtn) {
                         heuresTravaillees: heuresTrav,
                         ecart: ecart
                     };
+                    
                     // Remplacer ou ajouter ce jour (par date)
                     const idxExist = nouveauxJours.findIndex(j => j.date === dateStr);
                     if (idxExist !== -1) {
@@ -963,7 +1077,11 @@ if (importInput && importExcelBtn) {
                 }
             });
             localStorage.setItem('jours', JSON.stringify(jours));
+            
+            // Rafraîchir l'affichage et mettre à jour les compteurs
             afficherJours();
+            updateCompteursAbsences();
+            majCalendrier();
         };
         reader.readAsArrayBuffer(file);
     });
@@ -1936,7 +2054,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 return y !== anneeStr;
             });
             localStorage.setItem('jours', JSON.stringify(jours));
+            
+            // Supprime également tous les jours posés de l'année affichée
+            joursVacances = joursVacances.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+            joursRTT = joursRTT.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+            joursRHT = joursRHT.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+            joursFeries = joursFeries.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+            joursRattrapes = joursRattrapes.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+            
+            // Sauvegarde des jours posés mis à jour
+            localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
+            localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
+            localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
+            localStorage.setItem('joursFeries', JSON.stringify(joursFeries));
+            localStorage.setItem('joursRattrapes', JSON.stringify(joursRattrapes));
+            
+            // Rafraîchir l'affichage et mettre à jour les compteurs
             afficherJours();
+            updateCompteursAbsences();
+            majCalendrier();
             confirmModalAnneeBg.style.display = 'none';
         });
     }
@@ -2560,30 +2696,7 @@ function addPause3Ligne(nom) {
     updatePause3Total();
 })();
 
-// Correction du modal de suppression de l'année : listeners directs
-const confirmModalAnneeBg = document.getElementById('confirm-modal-annee-bg');
-const confirmAnneeOui = document.getElementById('confirm-annee-oui');
-const confirmAnneeNon = document.getElementById('confirm-annee-non');
-const btnSupprimerAnnee = document.getElementById('supprimer-annee');
-if (btnSupprimerAnnee && confirmModalAnneeBg && confirmAnneeOui && confirmAnneeNon) {
-    btnSupprimerAnnee.addEventListener('click', function() {
-        confirmModalAnneeBg.style.display = 'flex';
-    });
-    confirmAnneeNon.addEventListener('click', function() {
-        confirmModalAnneeBg.style.display = 'none';
-    });
-    confirmAnneeOui.addEventListener('click', function() {
-        // Supprime tous les jours de l'année affichée
-        const anneeStr = String(currentYear);
-        jours = jours.filter(jour => {
-            const [y] = jour.date.split('-');
-            return y !== anneeStr;
-        });
-        localStorage.setItem('jours', JSON.stringify(jours));
-        afficherJours();
-        confirmModalAnneeBg.style.display = 'none';
-    });
-}
+// Suppression du gestionnaire en double - le gestionnaire principal est dans DOMContentLoaded
 
 // Ajout de la synchronisation automatique des champs durée pour les pauses matin et midi du module 2
 function updateZeroPauseDurees() {
@@ -3477,6 +3590,72 @@ safeAddEventListener('export-excel-mois', 'click', function() {
     const moisYY = hasRHTInMonth ? `${moisStr}.${anneeStr.slice(2)}-RHT` : `${moisStr}.${anneeStr.slice(2)}`;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, moisYY);
+    
+    // Ajout de la feuille de backup des jours posés du mois
+    const backupData = [];
+    backupData.push(['Date', 'Type', 'Description']);
+    
+    // Récupérer tous les jours posés du mois
+    const joursVacancesMois = joursVacances.filter(jour => {
+        const [y, m] = jour.split('-');
+        return y === anneeStr && m === moisStr;
+    });
+    const joursRTTMois = joursRTT.filter(jour => {
+        const [y, m] = jour.split('-');
+        return y === anneeStr && m === moisStr;
+    });
+    const joursRHTMois = joursRHT.filter(jour => {
+        const [y, m] = jour.split('-');
+        return y === anneeStr && m === moisStr;
+    });
+    const joursFeriesMois = joursFeries.filter(jour => {
+        const [y, m] = jour.split('-');
+        return y === anneeStr && m === moisStr;
+    });
+    const joursRattrapesMois = joursRattrapes.filter(jour => {
+        const [y, m] = jour.split('-');
+        return y === anneeStr && m === moisStr;
+    });
+    
+    // Ajouter les congés payés
+    joursVacancesMois.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'Congé payé', 'CP']);
+    });
+    
+    // Ajouter les RTT
+    joursRTTMois.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'RTT', 'RTT']);
+    });
+    
+    // Ajouter les RHT
+    joursRHTMois.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'RHT', 'RHT']);
+    });
+    
+    // Ajouter les jours fériés
+    joursFeriesMois.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'Férié', 'Férié']);
+    });
+    
+    // Ajouter les jours rattrapés
+    joursRattrapesMois.forEach(dateStr => {
+        const [y, mo, d] = dateStr.split('-');
+        const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        backupData.push([dateFmt, 'Jour rattrapé', 'Rattrapé']);
+    });
+    
+    // Créer la feuille de backup
+    const wsBackup = XLSX.utils.aoa_to_sheet(backupData);
+    XLSX.utils.book_append_sheet(wb, wsBackup, 'Backup_Jours_Posés');
+    
     // Export du fichier (nom inchangé, seules les feuilles sont renommées)
     XLSX.writeFile(wb, `horaires_${moisStr}.${anneeStr.slice(2)}.xlsx`);
 });
@@ -3498,7 +3677,25 @@ safeAddEventListener('confirm-annee-oui', 'click', function() {
         return y !== anneeStr;
     });
     localStorage.setItem('jours', JSON.stringify(jours));
+    
+    // Supprime également tous les jours posés de l'année affichée
+    joursVacances = joursVacances.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+    joursRTT = joursRTT.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+    joursRHT = joursRHT.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+    joursFeries = joursFeries.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+    joursRattrapes = joursRattrapes.filter(dateStr => !dateStr.startsWith(anneeStr + '-'));
+    
+    // Sauvegarde des jours posés mis à jour
+    localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
+    localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
+    localStorage.setItem('joursRHT', JSON.stringify(joursRHT));
+    localStorage.setItem('joursFeries', JSON.stringify(joursFeries));
+    localStorage.setItem('joursRattrapes', JSON.stringify(joursRattrapes));
+    
+    // Rafraîchir l'affichage et mettre à jour les compteurs
     afficherJours();
+    updateCompteursAbsences();
+    majCalendrier();
     if (confirmModalAnneeBg) confirmModalAnneeBg.style.display = 'none';
 });
 
