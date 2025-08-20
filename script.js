@@ -210,9 +210,19 @@ function renderCalendrier(month, year) {
         const estJourTravaille = isJourTravaille(dateStr);
         
         // Mise en évidence si rempli
-        if(jours.some(j => j.date === dateStr)) td.classList.add('jour-rempli');
+        const estRempli = jours.some(j => j.date === dateStr);
+        if(estRempli) td.classList.add('jour-rempli');
+        
         // Mise en évidence si sélectionné
-        if(selectedDate === dateStr) td.classList.add('jour-selectionne');
+        if(selectedDate === dateStr) {
+            if(estRempli) {
+                // Jour sélectionné ET rempli : classe spéciale
+                td.classList.add('jour-selectionne-rempli');
+            } else {
+                // Jour sélectionné mais pas rempli
+                td.classList.add('jour-selectionne');
+            }
+        }
         // Mise en évidence vacances/RTT/RHT/fériés/rattrapés uniquement pour les jours (pas pour la colonne semaine)
         if (td.textContent && !isNaN(td.textContent)) {
             if(isJourVacances(dateStr)) td.classList.add('jour-vacances');
