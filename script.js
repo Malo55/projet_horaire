@@ -17,6 +17,7 @@ const pauseOfferteInput = document.getElementById('pause-offerte-min');
 let jours = JSON.parse(localStorage.getItem('jours')) || [];
 let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
 let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
+let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
 let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
 let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
 let heuresJour = parseFloat(localStorage.getItem('heuresJour')) || 7.5;
@@ -212,17 +213,22 @@ function renderCalendrier(month, year) {
         if(jours.some(j => j.date === dateStr)) td.classList.add('jour-rempli');
         // Mise en évidence si sélectionné
         if(selectedDate === dateStr) td.classList.add('jour-selectionne');
-        // Mise en évidence vacances/RTT uniquement pour les jours (pas pour la colonne semaine)
+        // Mise en évidence vacances/RTT/RHT/fériés/rattrapés uniquement pour les jours (pas pour la colonne semaine)
         if (td.textContent && !isNaN(td.textContent)) {
             if(isJourVacances(dateStr)) td.classList.add('jour-vacances');
             if(isJourRTT(dateStr)) td.classList.add('jour-rtt');
             if(isJourRHT(dateStr)) td.classList.add('jour-rht');
+            if(isJourFerie(dateStr)) td.classList.add('jour-ferie');
+            if(isJourRattrape(dateStr)) td.classList.add('jour-rattrape');
         }
         
-        // Gestion des jours non travaillés (grisés)
+        // Gestion des jours non travaillés et des jours spéciaux (grisés et clic désactivé)
         if (!estJourTravaille) {
             td.classList.add('jour-non-travaille');
             td.onclick = null; // Désactiver le clic
+        } else if (isJourVacances(dateStr) || isJourRTT(dateStr) || isJourRHT(dateStr) || isJourFerie(dateStr) || isJourRattrape(dateStr)) {
+            // Désactiver le clic sur tous les jours spéciaux
+            td.onclick = null;
         } else {
             td.onclick = () => {
                 ouvrirModal(dateStr);
@@ -1062,27 +1068,25 @@ if (btnModeRHT) btnModeRHT.onclick = function() { modeVacances = 'rht'; updateVa
 if (btnModeFerie) btnModeFerie.onclick = function() { modeVacances = 'ferie'; updateVacModeButtons(); };
 if (btnModeRattrape) btnModeRattrape.onclick = function() { modeVacances = 'rattrape'; updateVacModeButtons(); };
 
-// Lors de la validation d'un jour RHT, incrémenter le compteur
-const btnVacValider = document.getElementById('vacances-modal-valider');
-if (btnVacValider) {
-    btnVacValider.addEventListener('click', function() {
+// Gestion du compteur RHT lors de la validation
+// Le compteur RHT est géré dans le gestionnaire principal du bouton valider
+
+vacancesModalValider.addEventListener('click', function() {
+    // Gestion du compteur RHT lors de la validation
         if (modeVacances === 'rht') {
             compteurRHT++;
             localStorage.setItem('compteurRHT', compteurRHT);
         }
-        // ... logique existante pour les autres modes ...
-    });
-}
-// Pour affichage du compteur (à placer où tu veux dans l'UI)
-// Exemple : document.getElementById('compteur-rht').textContent = compteurRHT;
-// ... existing code ...
-
-vacancesModalValider.addEventListener('click', function() {
+    
+    // Sauvegarde de tous les types de jours
     localStorage.setItem('joursVacances', JSON.stringify(joursVacances));
     localStorage.setItem('joursRTT', JSON.stringify(joursRTT));
     localStorage.setItem('joursFeries', JSON.stringify(joursFeries));
     localStorage.setItem('joursRattrapes', JSON.stringify(joursRattrapes));
+    
+    // Fermeture du modal
     vacancesModalBg.style.display = 'none';
+    
     // Rafraîchit le calendrier principal et les compteurs après validation
     afficherJours();
     updateCompteursAbsences();
@@ -1090,9 +1094,8 @@ vacancesModalValider.addEventListener('click', function() {
 });
 
 function renderCalendrierVacances(annee) {
-    let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
-    let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
-    let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
+    // Utiliser les variables globales au lieu de créer des variables locales
+    // qui masquent la sauvegarde
     calendrierVacancesDiv.innerHTML = '';
     for (let month = 0; month < 12; month++) {
         const moisDiv = document.createElement('div');
@@ -1233,58 +1236,54 @@ function renderCalendrierVacances(annee) {
 }
 
 function isJourVacances(dateStr) {
+    // Lire directement depuis le localStorage pour être sûr d'avoir les données à jour
+    let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
     return joursVacances.includes(dateStr);
 }
 function isJourRTT(dateStr) {
+    // Lire directement depuis le localStorage pour être sûr d'avoir les données à jour
+    let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
     return joursRTT.includes(dateStr);
 }
 function isJourFerie(dateStr) {
+    // Lire directement depuis le localStorage pour être sûr d'avoir les données à jour
+    let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
     return joursFeries.includes(dateStr);
 }
 function isJourRattrape(dateStr) {
+    // Lire directement depuis le localStorage pour être sûr d'avoir les données à jour
+    let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
     return joursRattrapes.includes(dateStr);
 }
 function isJourRHT(dateStr) {
-    // On considère qu'un jour RHT est un jour où le modeVacances était 'rht' lors de la pose
+    // Lire directement depuis le localStorage pour être sûr d'avoir les données à jour
     let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
     return joursRHT.includes(dateStr);
 }
-// On modifie renderCalendrier pour désactiver le clic sur les jours de vacances/RTT
-const oldRenderCalendrier = renderCalendrier;
-renderCalendrier = function(month, year) {
-    oldRenderCalendrier(month, year);
-    // Ajout de la classe jour-vacances/jour-rtt sur le calendrier principal
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    let dayOfWeek = (firstDay.getDay() + 6) % 7;
+// Désactiver le clic sur les jours de vacances/RTT/RHT/fériés/rattrapés
+function desactiverClicJoursSpeciaux() {
     let tds = calendrierDiv.querySelectorAll('td');
-    let day = 1;
+    
     for(let i=0; i<tds.length; i++) {
         const td = tds[i];
         // On ne touche pas à la première colonne (numéro de semaine)
         if(td.cellIndex === 0) continue;
-        if(td.textContent && !isNaN(td.textContent)) {
-            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            if(isJourVacances(dateStr)) {
-                td.classList.add('jour-vacances');
-                td.onclick = null;
-            } else if(isJourRTT(dateStr)) {
-                td.classList.add('jour-rtt');
-                td.onclick = null;
-            } else if(isJourRHT(dateStr)) {
-                td.classList.add('jour-rht');
-                td.onclick = null;
-            } else if(isJourFerie(dateStr)) {
-                td.classList.add('jour-ferie');
-                td.onclick = null;
-            } else if(isJourRattrape(dateStr)) {
-                td.classList.add('jour-rattrape');
-                td.onclick = null;
+        
+        // Vérifier si c'est une cellule contenant un jour
+        if(td.textContent && !isNaN(td.textContent) && td.textContent.trim() !== '') {
+            const day = parseInt(td.textContent);
+            if(day >= 1 && day <= 31) { // Validation que c'est bien un jour valide
+                const currentMonth = parseInt(document.querySelector('.calendrier-header span').textContent.match(/\d+/)[0]) - 1;
+                const currentYear = parseInt(document.querySelector('.calendrier-header span').textContent);
+                const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                
+                if(isJourVacances(dateStr) || isJourRTT(dateStr) || isJourRHT(dateStr) || isJourFerie(dateStr) || isJourRattrape(dateStr)) {
+                    td.onclick = null; // Désactiver le clic
+                }
             }
-            day++;
         }
     }
-};
+}
 
 // --- Calculateur d'heure d'arrivée/départ ---
 const calcPauseDebut = document.getElementById('calc-pause-debut');
