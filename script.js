@@ -736,11 +736,26 @@ safeAddEventListener('export-excel', 'click', function() {
         const data = [];
         // En-tête
         data.push(header);
+        
+        // Vérifier si une phase RHT est active dans ce mois
+        let hasRHTInMonth = false;
+        if (moisData[moisStr].length > 0) {
+            hasRHTInMonth = moisData[moisStr].some(jour => {
+                return isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+            });
+        }
+        
         // Lignes de jours
         moisData[moisStr].forEach(jour => {
             // Date JJ.MM.AA
             const [y, mo, d] = jour.date.split('-');
             const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+            
+            // Vérifier si c'est un jour RHT pour recalculer les heures et l'écart
+            const isRhtDay = isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+            const isVac = isJourVacances(jour.date);
+            const isRtt = isJourRTT(jour.date);
+            
             // Pauses avant
             let pausesAvant = Array.isArray(jour.pausesAvant) ? jour.pausesAvant : [];
             let avantCells = [];
@@ -761,9 +776,30 @@ safeAddEventListener('export-excel', 'click', function() {
                     apresCells.push('', '');
                 }
             }
-            // Heures travaillées et écart (format x,xx)
-            let heuresTrav = (typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0)).toFixed(2).replace('.', ',');
-            let ecart = (typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0)).toFixed(2).replace('.', ',');
+            
+            // Recalcul des heures travaillées et écart si RHT actif
+            let heuresTrav, ecart;
+            if (isRhtDay && !(isVac || isRtt)) {
+                // Mode RHT : recalcul avec pause offerte RHT et heures à faire RHT
+                const pauseOffEff = getPauseOfferteEffective(jour.date);
+                heuresTrav = parseFloat(calculerHeuresAvecPause(
+                    jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                    jour.pausesAvant, jour.pausesApres,
+                    pauseOffEff,
+                    true
+                ));
+                const heuresJourEff = getHeuresJourMinutesEffective(jour.date) / 60;
+                ecart = heuresTrav - heuresJourEff;
+            } else {
+                // Mode standard : utiliser les valeurs stockées
+                heuresTrav = typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0);
+                ecart = typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0);
+            }
+            
+            // Formatage pour l'export (x,xx)
+            let heuresTravFormatted = heuresTrav.toFixed(2).replace('.', ',');
+            let ecartFormatted = ecart.toFixed(2).replace('.', ',');
+            
             data.push([
                 dateFmt,
                 jour.arrivee || '',
@@ -772,27 +808,55 @@ safeAddEventListener('export-excel', 'click', function() {
                 jour.pauseDejFin || '',
                 ...apresCells,
                 jour.depart || '',
-                heuresTrav,
-                ecart
+                heuresTravFormatted,
+                ecartFormatted
             ]);
         });
+        
         // Ligne de totaux
         if (moisData[moisStr].length > 0) {
-            // Total heures travaillées et total écart
-            let totalHeures = moisData[moisStr].reduce((acc, jour) => acc + (typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0)), 0);
-            let totalEcart = moisData[moisStr].reduce((acc, jour) => acc + (typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0)), 0);
+            // Recalculer les totaux avec les nouvelles valeurs RHT si nécessaire
+            let totalHeures = 0, totalEcart = 0;
+            
+            moisData[moisStr].forEach(jour => {
+                const isRhtDay = isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+                const isVac = isJourVacances(jour.date);
+                const isRtt = isJourRTT(jour.date);
+                
+                if (isRhtDay && !(isVac || isRtt)) {
+                    // Mode RHT : recalcul
+                    const pauseOffEff = getPauseOfferteEffective(jour.date);
+                    const heuresTrav = parseFloat(calculerHeuresAvecPause(
+                        jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                        jour.pausesAvant, jour.pausesApres,
+                        pauseOffEff,
+                        true
+                    ));
+                    const heuresJourEff = getHeuresJourMinutesEffective(jour.date) / 60;
+                    const ecart = heuresTrav - heuresJourEff;
+                    
+                    totalHeures += heuresTrav;
+                    totalEcart += ecart;
+                } else {
+                    // Mode standard : utiliser les valeurs stockées
+                    totalHeures += typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0);
+                    totalEcart += typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0);
+                }
+            });
+            
             let totalRow = Array(header.length).fill('');
             totalRow[header.indexOf('Heures travaillées')] = totalHeures.toFixed(2).replace('.', ',');
             totalRow[header.indexOf('Écart')] = totalEcart.toFixed(2).replace('.', ',');
             data.push(totalRow);
         }
+        
         // Création de la feuille
         const ws = XLSX.utils.aoa_to_sheet(data);
-        // Nom de feuille au format MM.YY
-        const sheetName = `${moisStr}.${anneeStr.slice(2)}`;
+        // Nom de feuille : MM.YY-RHT si RHT actif, sinon MM.YY
+        const sheetName = hasRHTInMonth ? `${moisStr}.${anneeStr.slice(2)}-RHT` : `${moisStr}.${anneeStr.slice(2)}`;
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
-    // Export du fichier
+    // Export du fichier (nom inchangé, seules les feuilles sont renommées)
     XLSX.writeFile(wb, `horaires_${anneeStr}.xlsx`);
 });
 
@@ -3273,6 +3337,15 @@ safeAddEventListener('export-excel-mois', 'click', function() {
         const [y, m] = jour.date.split('-');
         return y === anneeStr && m === moisStr;
     });
+    
+    // Vérifier si une phase RHT est active dans ce mois
+    let hasRHTInMonth = false;
+    if (joursMois.length > 0) {
+        hasRHTInMonth = joursMois.some(jour => {
+            return isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+        });
+    }
+    
     // Chercher le nombre max de pauses avant/après midi sur le mois (pour colonnes dynamiques)
     let maxAvant = 0, maxApres = 0;
     joursMois.forEach(jour => {
@@ -3298,6 +3371,12 @@ safeAddEventListener('export-excel-mois', 'click', function() {
         // Date JJ.MM.AA
         const [y, mo, d] = jour.date.split('-');
         const dateFmt = `${d}.${mo}.${y.slice(2)}`;
+        
+        // Vérifier si c'est un jour RHT pour recalculer les heures et l'écart
+        const isRhtDay = isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+        const isVac = isJourVacances(jour.date);
+        const isRtt = isJourRTT(jour.date);
+        
         // Pauses avant
         let pausesAvant = Array.isArray(jour.pausesAvant) ? jour.pausesAvant : [];
         let avantCells = [];
@@ -3318,9 +3397,30 @@ safeAddEventListener('export-excel-mois', 'click', function() {
                 apresCells.push('', '');
             }
         }
-        // Heures travaillées et écart (format x,xx)
-        let heuresTrav = (typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0)).toFixed(2).replace('.', ',');
-        let ecart = (typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0)).toFixed(2).replace('.', ',');
+        
+        // Recalcul des heures travaillées et écart si RHT actif
+        let heuresTrav, ecart;
+        if (isRhtDay && !(isVac || isRtt)) {
+            // Mode RHT : recalcul avec pause offerte RHT et heures à faire RHT
+            const pauseOffEff = getPauseOfferteEffective(jour.date);
+            heuresTrav = parseFloat(calculerHeuresAvecPause(
+                jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                jour.pausesAvant, jour.pausesApres,
+                pauseOffEff,
+                true
+            ));
+            const heuresJourEff = getHeuresJourMinutesEffective(jour.date) / 60;
+            ecart = heuresTrav - heuresJourEff;
+        } else {
+            // Mode standard : utiliser les valeurs stockées
+            heuresTrav = typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0);
+            ecart = typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0);
+        }
+        
+        // Formatage pour l'export (x,xx)
+        let heuresTravFormatted = heuresTrav.toFixed(2).replace('.', ',');
+        let ecartFormatted = ecart.toFixed(2).replace('.', ',');
+        
         data.push([
             dateFmt,
             jour.arrivee || '',
@@ -3329,25 +3429,56 @@ safeAddEventListener('export-excel-mois', 'click', function() {
             jour.pauseDejFin || '',
             ...apresCells,
             jour.depart || '',
-            heuresTrav,
-            ecart
+            heuresTravFormatted,
+            ecartFormatted
         ]);
     });
+    
     // Ligne de totaux
     if (joursMois.length > 0) {
-        let totalHeures = joursMois.reduce((acc, jour) => acc + (typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0)), 0);
-        let totalEcart = joursMois.reduce((acc, jour) => acc + (typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0)), 0);
+        // Recalculer les totaux avec les nouvelles valeurs RHT si nécessaire
+        let totalHeures = 0, totalEcart = 0;
+        
+        joursMois.forEach(jour => {
+            const isRhtDay = isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+            const isVac = isJourVacances(jour.date);
+            const isRtt = isJourRTT(jour.date);
+            
+            if (isRhtDay && !(isVac || isRtt)) {
+                // Mode RHT : recalcul
+                const pauseOffEff = getPauseOfferteEffective(jour.date);
+                const heuresTrav = parseFloat(calculerHeuresAvecPause(
+                    jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                    jour.pausesAvant, jour.pausesApres,
+                    pauseOffEff,
+                    true
+                ));
+                const heuresJourEff = getHeuresJourMinutesEffective(jour.date) / 60;
+                const ecart = heuresTrav - heuresJourEff;
+                
+                totalHeures += heuresTrav;
+                totalEcart += ecart;
+            } else {
+                // Mode standard : utiliser les valeurs stockées
+                totalHeures += typeof jour.heuresTravaillees === 'number' ? jour.heuresTravaillees : parseFloat(jour.heuresTravaillees || 0);
+                totalEcart += typeof jour.ecart === 'number' ? jour.ecart : parseFloat(jour.ecart || 0);
+            }
+        });
+        
         let totalRow = Array(header.length).fill('');
         totalRow[header.indexOf('Heures travaillées')] = totalHeures.toFixed(2).replace('.', ',');
         totalRow[header.indexOf('Écart')] = totalEcart.toFixed(2).replace('.', ',');
         data.push(totalRow);
     }
+    
     // Création de la feuille et du fichier
     const ws = XLSX.utils.aoa_to_sheet(data);
-    const moisYY = `${moisStr}.${anneeStr.slice(2)}`;
+    // Nom de feuille : MM.YY-RHT si RHT actif, sinon MM.YY
+    const moisYY = hasRHTInMonth ? `${moisStr}.${anneeStr.slice(2)}-RHT` : `${moisStr}.${anneeStr.slice(2)}`;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, moisYY);
-    XLSX.writeFile(wb, `horaires_${moisYY}.xlsx`);
+    // Export du fichier (nom inchangé, seules les feuilles sont renommées)
+    XLSX.writeFile(wb, `horaires_${moisStr}.${anneeStr.slice(2)}.xlsx`);
 });
 
 // --- Suppression de toutes les valeurs de l'année affichée avec confirmation ---
