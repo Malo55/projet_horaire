@@ -2186,7 +2186,8 @@ const calcFields = [
     'calc-arrivee', 'calc-depart',
     'calc-pause-debut', 'calc-pause-fin',
     'calc-pause1-debut', 'calc-pause1-fin',
-    'calc-pause2-debut', 'calc-pause2-fin'
+    'calc-pause2-debut', 'calc-pause2-fin',
+    'calc-pause-apres-debut', 'calc-pause-apres-fin'
 ];
 calcFields.forEach(id => {
     const el = document.getElementById(id);
@@ -2207,7 +2208,8 @@ calcFields.forEach(id => {
 const zeroFields = [
     'zero-arrivee', 'zero-depart',
     'zero-pause-debut', 'zero-pause-fin',
-    'zero-pause1-debut', 'zero-pause1-fin'
+    'zero-pause1-debut', 'zero-pause1-fin',
+    'zero-pause-apres-debut', 'zero-pause-apres-fin'
 ];
 zeroFields.forEach(id => {
     const el = document.getElementById(id);
@@ -2238,7 +2240,7 @@ updateCalculateur = function() {
     }
 };
 
-['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin'].forEach(id => {
+['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin','calc-pause-apres-debut','calc-pause-apres-fin'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
         safeAddEventListener(id, 'blur', function() {
@@ -2622,6 +2624,26 @@ if (zeroPauseMidiModeDebutFin && zeroPauseMidiModeDuree && zeroPauseMidiDebutFin
     });
 }
 
+// Gestion de l'affichage des modes de saisie pause après-midi (début/fin ou durée) pour le module 2
+const zeroPauseApresModeDebutFin = document.getElementById('zero-pause-apres-mode-debutfin');
+const zeroPauseApresModeDuree = document.getElementById('zero-pause-apres-mode-duree');
+const zeroPauseApresDebutFinFields = document.getElementById('zero-pause-apres-debutfin-fields');
+const zeroPauseApresDureeField = document.getElementById('zero-pause-apres-duree-field');
+if (zeroPauseApresModeDebutFin && zeroPauseApresModeDuree && zeroPauseApresDebutFinFields && zeroPauseApresDureeField) {
+    zeroPauseApresModeDebutFin.addEventListener('change', function() {
+        if (zeroPauseApresModeDebutFin.checked) {
+            zeroPauseApresDebutFinFields.style.display = 'flex';
+            zeroPauseApresDureeField.style.display = 'none';
+        }
+    });
+    zeroPauseApresModeDuree.addEventListener('change', function() {
+        if (zeroPauseApresModeDuree.checked) {
+            zeroPauseApresDebutFinFields.style.display = 'none';
+            zeroPauseApresDureeField.style.display = 'flex';
+        }
+    });
+}
+
 // ... existing code ...
 // Gestion de l'affichage des modes de saisie pause matin (début/fin ou durée) pour le module 1
 const calcPause1ModeDebutFin = document.getElementById('calc-pause1-mode-debutfin');
@@ -2661,11 +2683,31 @@ if (calcPauseMidiModeDebutFin && calcPauseMidiModeDuree && calcPauseMidiDebutFin
         }
     });
 }
+
+// Gestion de l'affichage des modes de saisie pause après-midi (début/fin ou durée) pour le module 1
+const calcPauseApresModeDebutFin = document.getElementById('calc-pause-apres-mode-debutfin');
+const calcPauseApresModeDuree = document.getElementById('calc-pause-apres-mode-duree');
+const calcPauseApresDebutFinFields = document.getElementById('calc-pause-apres-debutfin-fields');
+const calcPauseApresDureeField = document.getElementById('calc-pause-apres-duree-field');
+if (calcPauseApresModeDebutFin && calcPauseApresModeDuree && calcPauseApresDebutFinFields && calcPauseApresDureeField) {
+    calcPauseApresModeDebutFin.addEventListener('change', function() {
+        if (calcPauseApresModeDebutFin.checked) {
+            calcPauseApresDebutFinFields.style.display = 'flex';
+            calcPauseApresDureeField.style.display = 'none';
+        }
+    });
+    calcPauseApresModeDuree.addEventListener('change', function() {
+        if (calcPauseApresModeDuree.checked) {
+            calcPauseApresDebutFinFields.style.display = 'none';
+            calcPauseApresDureeField.style.display = 'flex';
+        }
+    });
+}
 // ... existing code ...
 
 // ... existing code ...
 // Appliquer la mise en forme automatique et la sauvegarde/restauration aux champs durée du module 1
-['calc-pause1-duree', 'calc-pause-midi-duree'].forEach(id => {
+['calc-pause1-duree', 'calc-pause-midi-duree', 'calc-pause-apres-duree'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
         formatHeureInputPause3(el);
@@ -2673,7 +2715,8 @@ if (calcPauseMidiModeDebutFin && calcPauseMidiModeDuree && calcPauseMidiDebutFin
             localStorage.setItem('calculette_' + id, el.value);
             if (
                 (id === 'calc-pause1-duree' && document.getElementById('calc-pause1-mode-duree')?.checked) ||
-                (id === 'calc-pause-midi-duree' && document.getElementById('calc-pause-midi-mode-duree')?.checked)
+                (id === 'calc-pause-midi-duree' && document.getElementById('calc-pause-midi-mode-duree')?.checked) ||
+                (id === 'calc-pause-apres-duree' && document.getElementById('calc-pause-apres-mode-duree')?.checked)
             ) {
                 calculerHeuresSupCalculette();
                 updateCalculateur();
@@ -2730,8 +2773,30 @@ function updateCalcPauseDurees() {
             dureeMidi.value = '';
         }
     }
+    // Pause après-midi
+    const debutApres = document.getElementById('calc-pause-apres-debut');
+    const finApres = document.getElementById('calc-pause-apres-fin');
+    const dureeApres = document.getElementById('calc-pause-apres-duree');
+    if (debutApres && finApres && dureeApres) {
+        if (/^\d{2}:\d{2}$/.test(debutApres.value) && /^\d{2}:\d{2}$/.test(finApres.value)) {
+            const [h1, m1] = debutApres.value.split(':').map(Number);
+            const [h2, m2] = finApres.value.split(':').map(Number);
+            let min1 = h1 * 60 + m1;
+            let min2 = h2 * 60 + m2;
+            let diff = min2 - min1;
+            if (diff >= 0) {
+                let hh = Math.floor(diff / 60).toString().padStart(2, '0');
+                let mm = (diff % 60).toString().padStart(2, '0');
+                dureeApres.value = hh + ':' + mm;
+            } else {
+                dureeApres.value = '';
+            }
+        } else {
+            dureeApres.value = '';
+        }
+    }
 }
-['calc-pause1-debut','calc-pause1-fin','calc-pause-debut','calc-pause-fin'].forEach(id => {
+['calc-pause1-debut','calc-pause1-fin','calc-pause-debut','calc-pause-fin','calc-pause-apres-debut','calc-pause-apres-fin'].forEach(id => {
     const el = document.getElementById(id);
     if (el) safeAddEventListener(id, 'input', updateCalcPauseDurees);
 });
@@ -2826,12 +2891,12 @@ function updateCalcPauseDurees() {
 // 1. Appliquer la mise en forme automatique à tous les champs horaires (y compris dynamiques)
 function applyFormatHeureInputToAll() {
     // Module 1
-    ['calc-arrivee','calc-depart','calc-pause1-debut','calc-pause1-fin','calc-pause1-duree','calc-pause-debut','calc-pause-fin','calc-pause-midi-duree'].forEach(id => {
+    ['calc-arrivee','calc-depart','calc-pause1-debut','calc-pause1-fin','calc-pause1-duree','calc-pause-debut','calc-pause-fin','calc-pause-midi-duree','calc-pause-apres-debut','calc-pause-apres-fin','calc-pause-apres-duree'].forEach(id => {
         const el = document.getElementById(id);
         if (el) formatHeureInputPause3(el);
     });
     // Module 2
-    ['zero-arrivee','zero-depart','zero-pause1-debut','zero-pause1-fin','zero-pause1-duree','zero-pause-debut','zero-pause-fin','zero-pause-midi-duree'].forEach(id => {
+    ['zero-arrivee','zero-depart','zero-pause1-debut','zero-pause1-fin','zero-pause1-duree','zero-pause-debut','zero-pause-fin','zero-pause-midi-duree','zero-pause-apres-debut','zero-pause-apres-fin','zero-pause-apres-duree'].forEach(id => {
         const el = document.getElementById(id);
         if (el) formatHeureInputPause3(el);
     });
@@ -3414,7 +3479,7 @@ function isJourRHT(dateStr) {
     return joursRHT.includes(dateStr);
 }
 
-// On modifie ouvrirModal pour garder tous les champs visibles même en mode RHT
+// On modifie ouvrirModal pour gérer l'affichage conditionnel selon le mode RHT
 const oldOuvrirModal = ouvrirModal;
 ouvrirModal = function(dateStr = null) {
     if (dateStr && (isJourVacances(dateStr) || isJourRTT(dateStr) || isJourFerie(dateStr) || isJourRattrape(dateStr))) {
@@ -3424,18 +3489,193 @@ ouvrirModal = function(dateStr = null) {
     // Appeler la fonction originale
     oldOuvrirModal(dateStr);
     
-    // Tous les champs restent visibles, même en mode RHT phase 1 ou 2
-    // Les utilisateurs peuvent saisir leurs horaires normalement
+    // Gérer l'affichage conditionnel selon le mode RHT
+    if (dateStr) {
+        gererAffichageChampsRHT(dateStr);
+    }
+}
+
+// Fonction pour gérer l'affichage conditionnel des champs selon le mode RHT
+function gererAffichageChampsRHT(dateStr) {
+    const isRHTPhase1 = isDateInRHTPhase1(dateStr);
+    const isRHTPhase2 = isDateInRHT(dateStr);
+    
+    // Éléments du modal principal
     const pauseMidiContainer = document.querySelector('#pause-midi-row').parentElement;
     const pausesApresContainer = document.getElementById('pauses-apres-container');
     
-    if (pauseMidiContainer) {
-        pauseMidiContainer.style.display = 'flex';
-    }
-    if (pausesApresContainer) {
-        pausesApresContainer.style.display = 'block';
+    // Éléments du module 1 (calculette)
+    const calcMidiGroup = document.getElementById('calc-midi-group');
+    
+    // Éléments du module 2 (simulateur)
+    const zeroMidiGroup = document.getElementById('zero-midi-group');
+    
+    if (isRHTPhase2) {
+        // Mode RHT phase 2 activé : masquer pause midi et pauses après-midi
+        if (pauseMidiContainer) pauseMidiContainer.style.display = 'none';
+        if (pausesApresContainer) pausesApresContainer.style.display = 'none';
+        if (calcMidiGroup) calcMidiGroup.style.display = 'none';
+        if (zeroMidiGroup) zeroMidiGroup.style.display = 'none';
+    } else if (isRHTPhase1) {
+        // Mode RHT phase 1 activé : EXCEPTION - garder tous les champs visibles
+        if (pauseMidiContainer) pauseMidiContainer.style.display = 'flex';
+        if (pausesApresContainer) pausesApresContainer.style.display = 'block';
+        if (calcMidiGroup) calcMidiGroup.style.display = 'flex';
+        if (zeroMidiGroup) zeroMidiGroup.style.display = 'flex';
+    } else {
+        // Mode RHT désactivé : afficher tous les champs
+        if (pauseMidiContainer) pauseMidiContainer.style.display = 'flex';
+        if (pausesApresContainer) pausesApresContainer.style.display = 'block';
+        if (calcMidiGroup) calcMidiGroup.style.display = 'flex';
+        if (zeroMidiGroup) zeroMidiGroup.style.display = 'flex';
     }
 }
+
+// Fonction pour gérer l'affichage conditionnel des champs dans les modules selon le mode RHT
+function gererAffichageModuleRHT(moduleType, rhtEnabled) {
+    if (moduleType === 'calc') {
+        // Module 1 : calculette
+        const calcMidiGroup = document.getElementById('calc-midi-group');
+        const calcApresMidiGroup = document.getElementById('calc-apres-midi-group');
+        
+        if (calcMidiGroup && calcApresMidiGroup) {
+            if (!rhtEnabled) {
+                // Mode RHT désactivé : affichage complet
+                calcMidiGroup.style.display = 'flex';
+                calcApresMidiGroup.style.display = 'flex';
+            } else {
+                // Mode RHT activé : vérifier la phase
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+                const isRHTPhase1 = isDateInRHTPhase1(todayStr);
+                
+                if (isRHTPhase1) {
+                    // Exception phase 1 : garder tous les champs visibles même en mode RHT
+                    calcMidiGroup.style.display = 'flex';
+                    calcApresMidiGroup.style.display = 'flex';
+                } else {
+                    // Mode RHT phase 2 : masquer pause midi et pause après-midi
+                    calcMidiGroup.style.display = 'none';
+                    calcApresMidiGroup.style.display = 'none';
+                }
+            }
+        }
+    } else if (moduleType === 'zero') {
+        // Module 2 : simulateur
+        const zeroMidiGroup = document.getElementById('zero-midi-group');
+        const zeroApresMidiGroup = document.getElementById('zero-apres-midi-group');
+        
+        if (zeroMidiGroup && zeroApresMidiGroup) {
+            if (!rhtEnabled) {
+                // Mode RHT désactivé : affichage complet
+                zeroMidiGroup.style.display = 'flex';
+                zeroApresMidiGroup.style.display = 'flex';
+            } else {
+                // Mode RHT activé : vérifier la phase
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+                const isRHTPhase1 = isDateInRHTPhase1(todayStr);
+                
+                if (isRHTPhase1) {
+                    // Exception phase 1 : garder tous les champs visibles même en mode RHT
+                    zeroMidiGroup.style.display = 'flex';
+                    zeroApresMidiGroup.style.display = 'flex';
+                } else {
+                    // Mode RHT phase 2 : masquer pause midi et pause après-midi
+                    zeroMidiGroup.style.display = 'none';
+                    zeroApresMidiGroup.style.display = 'none';
+                }
+            }
+        }
+    }
+}
+
+// Fonction pour vérifier le chevauchement des plages RHT
+function verifierChevauchementRHT() {
+    const phase1Enabled = localStorage.getItem('param-rht-phase1-enabled') === 'true';
+    const phase2Enabled = localStorage.getItem('rht_enabled') === 'true';
+    
+    if (!phase1Enabled || !phase2Enabled) {
+        return { hasOverlap: false, message: '' };
+    }
+    
+    const phase1Debut = localStorage.getItem('param-rht-phase1-debut') || '';
+    const phase1Fin = localStorage.getItem('param-rht-phase1-fin') || '';
+    const phase2Debut = localStorage.getItem('rht_debut') || '';
+    const phase2Fin = localStorage.getItem('rht_fin') || '';
+    
+    // Vérifier que les plages sont complètes
+    if (!phase1Debut || !phase1Fin || !phase2Debut || !phase2Fin) {
+        return { hasOverlap: false, message: '' };
+    }
+    
+    // Convertir les dates au format ISO
+    function toISO(jjmmaaaa2) {
+        const [jj, mm, aa] = jjmmaaaa2.split('.');
+        const yyyy = parseInt(aa, 10) + 2000;
+        return `${yyyy}-${mm}-${jj}`;
+    }
+    
+    try {
+        const p1Start = toISO(phase1Debut);
+        const p1End = toISO(phase1Fin);
+        const p2Start = toISO(phase2Debut);
+        const p2End = toISO(phase2Fin);
+        
+        // Vérifier le chevauchement
+        const hasOverlap = !(p1End < p2Start || p2End < p1Start);
+        
+        if (hasOverlap) {
+            return {
+                hasOverlap: true,
+                message: '⚠️ Erreur : Les plages RHT Phase 1 et Phase 2 se chevauchent. Veuillez ajuster les dates.'
+            };
+        }
+        
+        return { hasOverlap: false, message: '' };
+    } catch (error) {
+        return { hasOverlap: false, message: '' };
+    }
+}
+
+// Fonction pour afficher/masquer le message d'erreur de chevauchement
+function afficherMessageChevauchement() {
+    const messageContainer = document.getElementById('rht-overlap-message');
+    if (!messageContainer) return;
+    
+    const { hasOverlap, message } = verifierChevauchementRHT();
+    
+    if (hasOverlap) {
+        messageContainer.textContent = message;
+        messageContainer.style.display = 'block';
+        messageContainer.style.color = '#d32f2f';
+        messageContainer.style.backgroundColor = '#ffebee';
+        messageContainer.style.padding = '8px 12px';
+        messageContainer.style.borderRadius = '4px';
+        messageContainer.style.marginTop = '8px';
+        messageContainer.style.fontSize = '14px';
+    } else {
+        messageContainer.style.display = 'none';
+    }
+}
+
+// Fonction d'initialisation de l'affichage des modules RHT au chargement de la page
+function initialiserAffichageModulesRHT() {
+    // Module 1 : calculette
+    const calcRhtMode = document.getElementById('calc-rht-mode');
+    if (calcRhtMode) {
+        const calcRhtEnabled = calcRhtMode.checked;
+        gererAffichageModuleRHT('calc', calcRhtEnabled);
+    }
+    
+    // Module 2 : simulateur
+    const zeroRhtMode = document.getElementById('zero-rht-mode');
+    if (zeroRhtMode) {
+        const zeroRhtEnabled = zeroRhtMode.checked;
+        gererAffichageModuleRHT('zero', zeroRhtEnabled);
+    }
+}
+
 // Lors de la pose d'un jour RHT dans le calendrier vacances, on l'ajoute à joursRHT
 // (à placer dans la logique de sélection du calendrier vacances)
 // ... existing code ...
@@ -3461,9 +3701,21 @@ function updateCompteursAbsences() {
 }
 // Appel initial des compteurs d'absences au chargement
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', updateCompteursAbsences);
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCompteursAbsences();
+        initialiserAffichageModulesRHT();
+        // Vérifier le chevauchement des plages RHT au chargement
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
+        }
+    });
 } else {
     updateCompteursAbsences();
+    initialiserAffichageModulesRHT();
+    // Vérifier le chevauchement des plages RHT au chargement
+    if (typeof afficherMessageChevauchement === 'function') {
+        afficherMessageChevauchement();
+    }
 }
 // ... existing code ...
 
@@ -3565,6 +3817,14 @@ if (document.readyState === 'loading') {
         if (typeof afficherJours === 'function') {
             afficherJours();
         }
+        // Mettre à jour l'affichage des modules selon le nouveau paramètre
+        if (typeof initialiserAffichageModulesRHT === 'function') {
+            initialiserAffichageModulesRHT();
+        }
+        // Vérifier le chevauchement des plages
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
+        }
     });
     if (rhtPhase1Debut) rhtPhase1Debut.addEventListener('blur', function() {
         localStorage.setItem('param-rht-phase1-debut', rhtPhase1Debut.value);
@@ -3572,12 +3832,28 @@ if (document.readyState === 'loading') {
         if (typeof afficherJours === 'function') {
             afficherJours();
         }
+        // Mettre à jour l'affichage des modules selon le nouveau paramètre
+        if (typeof initialiserAffichageModulesRHT === 'function') {
+            initialiserAffichageModulesRHT();
+        }
+        // Vérifier le chevauchement des plages
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
+        }
     });
     if (rhtPhase1Fin) rhtPhase1Fin.addEventListener('blur', function() {
         localStorage.setItem('param-rht-phase1-fin', rhtPhase1Fin.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
+        }
+        // Mettre à jour l'affichage des modules selon le nouveau paramètre
+        if (typeof initialiserAffichageModulesRHT === 'function') {
+            initialiserAffichageModulesRHT();
+        }
+        // Vérifier le chevauchement des plages
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
         }
     });
     
@@ -3588,12 +3864,28 @@ if (document.readyState === 'loading') {
         if (typeof afficherJours === 'function') {
             afficherJours();
         }
+        // Mettre à jour l'affichage des modules selon le nouveau paramètre
+        if (typeof initialiserAffichageModulesRHT === 'function') {
+            initialiserAffichageModulesRHT();
+        }
+        // Vérifier le chevauchement des plages
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
+        }
     });
     if (rhtDebut) rhtDebut.addEventListener('blur', function() {
         localStorage.setItem('rht_debut', rhtDebut.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
+        }
+        // Mettre à jour l'affichage des modules selon le nouveau paramètre
+        if (typeof initialiserAffichageModulesRHT === 'function') {
+            initialiserAffichageModulesRHT();
+        }
+        // Vérifier le chevauchement des plages
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
         }
     });
     if (rhtFin) rhtFin.addEventListener('blur', function() {
@@ -3602,12 +3894,28 @@ if (document.readyState === 'loading') {
         if (typeof afficherJours === 'function') {
             afficherJours();
         }
+        // Mettre à jour l'affichage des modules selon le nouveau paramètre
+        if (typeof initialiserAffichageModulesRHT === 'function') {
+            initialiserAffichageModulesRHT();
+        }
+        // Vérifier le chevauchement des plages
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
+        }
     });
     if (rhtPauseOfferte) rhtPauseOfferte.addEventListener('input', function() {
         localStorage.setItem('rht_pause_offerte', rhtPauseOfferte.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
+        }
+        // Mettre à jour l'affichage des modules selon le nouveau paramètre
+        if (typeof initialiserAffichageModulesRHT === 'function') {
+            initialiserAffichageModulesRHT();
+        }
+        // Vérifier le chevauchement des plages
+        if (typeof afficherMessageChevauchement === 'function') {
+            afficherMessageChevauchement();
         }
     });
 
@@ -3617,16 +3925,19 @@ if (document.readyState === 'loading') {
 // ... existing code ...
 
 // ... existing code ...
-// Module 2: RHT toggle - garder tous les champs visibles
+// Module 2: RHT toggle - affichage conditionnel des champs
 (function() {
     const rhtToggle = document.getElementById('zero-rht-mode');
     const midiGroup = document.getElementById('zero-midi-group');
     if (!rhtToggle || !midiGroup) return;
+    
     // Restauration
     const saved = localStorage.getItem('zero_rht_mode') === 'true';
     rhtToggle.checked = saved;
-    // Garder le groupe midi toujours visible
-    midiGroup.style.display = 'flex';
+    
+    // Appliquer l'affichage initial selon l'état sauvegardé
+    gererAffichageModuleRHT('zero', saved);
+    
     // S'assurer que la mise en forme couleur des plages est correcte au chargement
     if (typeof updateZeroPlages === 'function') {
         // Appel après restauration de l'état du toggle
@@ -3635,30 +3946,37 @@ if (document.readyState === 'loading') {
             if (typeof calculerHeuresSupZero === 'function') calculerHeuresSupZero();
         }, 0);
     }
+    
     rhtToggle.addEventListener('change', function() {
         const enabled = rhtToggle.checked;
-        // Garder le groupe midi toujours visible même en mode RHT
-        midiGroup.style.display = 'flex';
         localStorage.setItem('zero_rht_mode', String(enabled));
+        
+        // Appliquer l'affichage conditionnel
+        gererAffichageModuleRHT('zero', enabled);
     });
 })();
 // ... existing code ...
 
 // ... existing code ...
-// Module 1: RHT toggle - garder tous les champs visibles
+// Module 1: RHT toggle - affichage conditionnel des champs
 (function() {
     const rhtToggle = document.getElementById('calc-rht-mode');
     const midiGroup = document.getElementById('calc-midi-group');
     if (!rhtToggle || !midiGroup) return;
+    
     const saved = localStorage.getItem('calc_rht_mode') === 'true';
     rhtToggle.checked = saved;
-    // Garder le groupe midi toujours visible
-    midiGroup.style.display = 'flex';
+    
+    // Appliquer l'affichage initial selon l'état sauvegardé
+    gererAffichageModuleRHT('calc', saved);
+    
     rhtToggle.addEventListener('change', function() {
         const enabled = rhtToggle.checked;
-        // Garder le groupe midi toujours visible même en mode RHT
-        midiGroup.style.display = 'flex';
         localStorage.setItem('calc_rht_mode', String(enabled));
+        
+        // Appliquer l'affichage conditionnel
+        gererAffichageModuleRHT('calc', enabled);
+        
         // Recalculer si besoin
         if (typeof updateCalculateur === 'function') {
             lastInput = 'calc-arrivee';
