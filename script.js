@@ -4022,17 +4022,23 @@ function updateCompteursAbsences() {
     const compteurVac = document.getElementById('compteur-vacances');
     const compteurRTT = document.getElementById('compteur-rtt');
     const compteurRHT = document.getElementById('compteur-rht');
+    const compteurRattrapes = document.getElementById('compteur-rattrapes');
+    const compteurFeries = document.getElementById('compteur-feries');
     const compteurRTTHeures = document.getElementById('compteur-rtt-heures');
     const compteurRHTHeures = document.getElementById('compteur-rht-heures');
     let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
     let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
     let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+    let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
+    let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
     // Heures à faire par jour (en minutes)
     let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60;
     let heuresJour = minutesJour / 60;
     if (compteurVac) compteurVac.textContent = joursVacances.length;
     if (compteurRTT) compteurRTT.textContent = joursRTT.length;
     if (compteurRHT) compteurRHT.textContent = joursRHT.length;
+    if (compteurRattrapes) compteurRattrapes.textContent = joursRattrapes.length;
+    if (compteurFeries) compteurFeries.textContent = joursFeries.length;
     if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
 }
@@ -4454,17 +4460,23 @@ function updateCompteursAbsences() {
     const compteurVac = document.getElementById('compteur-vacances');
     const compteurRTT = document.getElementById('compteur-rtt');
     const compteurRHT = document.getElementById('compteur-rht');
+    const compteurRattrapes = document.getElementById('compteur-rattrapes');
+    const compteurFeries = document.getElementById('compteur-feries');
     const compteurRTTHeures = document.getElementById('compteur-rtt-heures');
     const compteurRHTHeures = document.getElementById('compteur-rht-heures');
     let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
     let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
     let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+    let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
+    let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
     // Heures à faire par jour (en minutes)
     let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60;
     let heuresJour = minutesJour / 60;
     if (compteurVac) compteurVac.textContent = joursVacances.length;
     if (compteurRTT) compteurRTT.textContent = joursRTT.length;
     if (compteurRHT) compteurRHT.textContent = joursRHT.length;
+    if (compteurRattrapes) compteurRattrapes.textContent = joursRattrapes.length;
+    if (compteurFeries) compteurFeries.textContent = joursFeries.length;
     if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
     // RHT perdus/supplémentaire mensuels

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Compteurs Jours Posés</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .data-display { background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; font-family: monospace; }
+        .compteur { background: #e9ecef; padding: 8px; border-radius: 4px; margin: 5px 0; display: inline-block; min-width: 120px; text-align: center; }
+        .compteur-value { font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Compteurs Jours Posés</h1>
+    
+    <div class="test-section info">
+        <h2>📋 Nouveaux compteurs ajoutés</h2>
+        <p>Les compteurs suivants ont été ajoutés entre <strong>RHT</strong> et <strong>Heures perdues</strong> :</p>
+        <ul>
+            <li>✅ <strong>Jours rattrapés</strong> : Compte le nombre de jours rattrapés posés</li>
+            <li>✅ <strong>Jours fériés</strong> : Compte le nombre de jours fériés posés</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔧 Comment tester</h2>
+        <ol>
+            <li>Ouvrez le modal de vacances (bouton "Vacances")</li>
+            <li>Posez quelques jours fériés et jours rattrapés</li>
+            <li>Vérifiez que les compteurs se mettent à jour</li>
+            <li>Supprimez quelques jours et vérifiez que les compteurs diminuent</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h2>📊 État actuel des compteurs</h2>
+        <div class="data-display" id="current-data">
+            Chargement des données...
+        </div>
+        <button onclick="refreshData()">Actualiser</button>
+    </div>
+    
+    <div class="test-section success">
+        <h2>✅ Vérification des compteurs</h2>
+        <p>Vérifiez que dans l'application principale :</p>
+        <ul>
+            <li>Le compteur <strong>Jours rattrapés</strong> affiche le bon nombre</li>
+            <li>Le compteur <strong>Jours fériés</strong> affiche le bon nombre</li>
+            <li>Les compteurs se mettent à jour en temps réel</li>
+            <li>Les compteurs se mettent à jour après suppression d'année</li>
+        </ul>
+    </div>
+    
+    <div class="test-section warning">
+        <h2>⚠️ Points d'attention</h2>
+        <ul>
+            <li>Les compteurs doivent être synchronisés avec le localStorage</li>
+            <li>Les compteurs doivent se mettre à jour après chaque modification</li>
+            <li>Les compteurs doivent être réinitialisés lors de la suppression d'année</li>
+            <li>Les compteurs doivent être restaurés lors de l'import Excel</li>
+        </ul>
+    </div>
+
+    <script>
+        // Fonction pour actualiser l'affichage des données
+        function refreshData() {
+            const joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
+            const joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
+            const joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
+            const joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
+            const joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
+            const jours = JSON.parse(localStorage.getItem('jours')) || [];
+            
+            const dataDisplay = document.getElementById('current-data');
+            dataDisplay.innerHTML = `
+                <div class="compteur">
+                    <strong>CP</strong><br>
+                    <span class="compteur-value">${joursVacances.length}</span>
+                </div>
+                <div class="compteur">
+                    <strong>RTT</strong><br>
+                    <span class="compteur-value">${joursRTT.length}</span>
+                </div>
+                <div class="compteur">
+                    <strong>RHT</strong><br>
+                    <span class="compteur-value">${joursRHT.length}</span>
+                </div>
+                <div class="compteur">
+                    <strong>Jours Rattrapés</strong><br>
+                    <span class="compteur-value">${joursRattrapes.length}</span>
+                </div>
+                <div class="compteur">
+                    <strong>Jours Fériés</strong><br>
+                    <span class="compteur-value">${joursFeries.length}</span>
+                </div>
+                <div class="compteur">
+                    <strong>Total Horaires</strong><br>
+                    <span class="compteur-value">${jours.length}</span>
+                </div>
+                <br><br>
+                <strong>Dernière mise à jour :</strong> ${new Date().toLocaleString()}
+            `;
+        }
+        
+        // Actualiser les données au chargement
+        document.addEventListener('DOMContentLoaded', refreshData);
+        
+        // Actualiser toutes les 2 secondes pour voir les changements en temps réel
+        setInterval(refreshData, 2000);
+    </script>
+</body>
+</html>
