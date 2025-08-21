@@ -1,6 +1,5 @@
 À MODIFIER :
-CR et FP ne sont pas enregistrés en local il semblerait
-Verifier les interfaces d'horaires 
+dans l'export, rajouter le nom TOTAL a coté du total + rajouter quand rht de l'ecretage 
 
 
 Ajouter calendrier de ferié suisse neuchatel et peut etre d'autres
