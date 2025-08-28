@@ -462,8 +462,20 @@ function afficherJours() {
         if (isVac || isRtt) {
             ecartAfficheDyn = (isRtt ? '-' : '') + heuresJourEff.toFixed(2);
             ecartClassDyn = 'ecart-negatif';
-        } else if (isRht || isDateInRHTPhase1(jour.date)) {
-            // Mode RHT (phase 1 ou 2) : pas de libellé texte, uniquement la valeur
+        } else if (isDateInRHTPhase1(jour.date)) {
+            // Mode RHT phase 1 : heures sup écrêtées, heures inf dans compteurs RHT
+            if (ecartDyn > 0) {
+                ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
+                ecartClassDyn = 'ecart-positif'; // Vert pour positif
+            } else if (ecartDyn < 0) {
+                ecartAfficheDyn = `${ecartDyn.toFixed(2)}`;
+                ecartClassDyn = 'ecart-negatif'; // Rouge pour négatif
+            } else {
+                ecartAfficheDyn = '0.00';
+                ecartClassDyn = 'ecart-zero'; // Jaune pour zéro
+            }
+        } else if (isRht) {
+            // Mode RHT phase 2 : comportement normal
             if (ecartDyn > 0) {
                 ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
                 ecartClassDyn = 'ecart-positif'; // Vert pour positif
@@ -555,6 +567,7 @@ function afficherJours() {
     // Affichage du total d'heures supplémentaires du mois
     const totalEcartDiv = document.getElementById('total-ecart');
     const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
+    
     totalEcartDiv.innerHTML = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
 
     // Calcul et affichage du total d'heure supplémentaire de l'année (avec heuresSupplementaires)
@@ -571,8 +584,14 @@ function afficherJours() {
         
         if (isVac || isRtt) {
             // Vacances et RTT : pas d'écart
+        } else if (isDateInRHTPhase1(jour.date)) {
+            // Jours RHT phase 1: heures sup écrêtées, heures inf dans compteurs RHT
+            // Les heures écrêtées ne sont pas ajoutées au total annuel général
+            // (elles sont gérées dans les compteurs RHT dédiés)
+            let ecartDyn = heuresTravDyn - heuresJour;
+            // Heures inf : ne pas ajouter au total annuel (déjà dans compteurs RHT)
         } else if (isRht) {
-            // Jours RHT: n'affectent ni le total annuel ni les compteurs ici
+            // Jours RHT phase 2: n'affectent ni le total annuel ni les compteurs ici
         } else {
             // Mode standard : affecte le total annuel
             let ecartDyn = heuresTravDyn - heuresJour;
@@ -608,15 +627,19 @@ form.addEventListener('submit', function(e) {
     const depart = form['depart'].value;
     
     // Vérifier si c'est un jour RHT (phase 1 ou 2)
-    const isRhtDay = isDateInRHT(date) || isDateInRHTPhase1(date);
+    const isRhtPhase2 = isDateInRHT(date);
+    const isRhtPhase1 = isDateInRHTPhase1(date);
     
-    // Pour les jours RHT, on ne prend pas en compte pause midi et pauses après midi
+    // Pour les jours RHT phase 2, on ne prend pas en compte pause midi et pauses après midi
+    // Pour les jours RHT phase 1, on garde les pauses normales (pas de modification des horaires)
     let pauseDejDebut, pauseDejFin, pausesApresData;
-    if (isRhtDay) {
+    if (isRhtPhase2) {
+        // Phase 2 RHT : pas de pause midi
         pauseDejDebut = '';
         pauseDejFin = '';
         pausesApresData = [];
     } else {
+        // Phase 1 RHT ou jour normal : garder les pauses
         pauseDejDebut = form['pause-debut'].value;
         pauseDejFin = form['pause-fin'].value;
         pausesApresData = JSON.parse(JSON.stringify(pausesApres));
@@ -2185,12 +2208,28 @@ function calculerHeuresSupZero() {
     const zeroRhtChecked = !!document.getElementById('zero-rht-mode')?.checked;
     let heuresJourMin;
     let pauseOfferteVal;
+    let isRhtPhase1 = false;
+    
     if (zeroRhtChecked) {
-        const rhtDecStr = localStorage.getItem('rht_heures_dec');
-        const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
-        heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
-        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
-        pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+        // Vérifier si on est en RHT phase 1 (date actuelle)
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        isRhtPhase1 = isDateInRHTPhase1(todayStr);
+        
+        if (isRhtPhase1) {
+            // RHT phase 1 : utiliser les heures standard (pas de modification des horaires)
+            const heuresJourInput = document.getElementById('heures-jour');
+            const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
+            pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+        } else {
+            // RHT phase 2 : utiliser les paramètres RHT
+            const rhtDecStr = localStorage.getItem('rht_heures_dec');
+            const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
+            const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+            pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+        }
     } else {
         // Mode normal : utiliser les paramètres généraux
         const heuresJourInput = document.getElementById('heures-jour');
@@ -2231,6 +2270,7 @@ function calculerHeuresSupZero() {
     let hh = Math.floor(absMinutes / 60).toString().padStart(2, '0');
     let mm = (absMinutes % 60).toString().padStart(2, '0');
     let hhmm = `(${signe}${hh}:${mm})`;
+    // Affichage des heures sup
     zeroHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h ' + hhmm;
     zeroHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
 }
@@ -2321,12 +2361,28 @@ function calculerHeuresSupCalculette() {
     const calcRhtChecked = !!document.getElementById('calc-rht-mode')?.checked;
     let heuresJourMin;
     let pauseOfferteVal;
+    let isRhtPhase1 = false;
+    
     if (calcRhtChecked) {
-        const rhtDecStr = localStorage.getItem('rht_heures_dec');
-        const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
-        heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
-        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
-        pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+        // Vérifier si on est en RHT phase 1 (date actuelle)
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        isRhtPhase1 = isDateInRHTPhase1(todayStr);
+        
+        if (isRhtPhase1) {
+            // RHT phase 1 : utiliser les heures standard (pas de modification des horaires)
+            const heuresJourInput = document.getElementById('heures-jour');
+            const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
+            pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
+        } else {
+            // RHT phase 2 : utiliser les paramètres RHT
+            const rhtDecStr = localStorage.getItem('rht_heures_dec');
+            const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
+            const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+            pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
+        }
     } else {
         // Mode normal : utiliser les paramètres généraux
         const heuresJourInput = document.getElementById('heures-jour');
@@ -2375,6 +2431,7 @@ function calculerHeuresSupCalculette() {
     console.log('localStorage rht_pause_offerte:', localStorage.getItem('rht_pause_offerte'));
     console.log('======================');
     
+    // Affichage des heures sup
     calcHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
     calcHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
 }

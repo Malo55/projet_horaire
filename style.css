@@ -7,6 +7,10 @@
     color: #f44336;
     font-weight: bold;
 }
+.ecart-zero {
+    color: #ff9800;
+    font-weight: bold;
+}
 .btn-supprimer {
     background: #e74c3c;
     color: #fff;
