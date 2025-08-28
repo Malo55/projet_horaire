@@ -4,6 +4,8 @@ quand je clique sur une case, et que ensuite je rentre les horaire et que je val
 Le calcul des heures supp totales prends en compte la periode de juillet dans le total mais pas dans le mensuel
 En cas de periode de RHT, afficher a coté du compteur d'heure sup mensuel entre parenthèses le nombre d'heures sup faites
 Dans les 2 modes RHT, il faut pouvoir ajouter d'autres periodes avec un + comme pour les pauses
+Ajouter un compteur indicatif de % de diminution du salaire en fonction du nombre de rht fait dans le mois
+Ajouter un calcul estimatif de salaire dans un modal
 
 Ajouter graphiques de suivi d'heure faite avec la cible d'heure par jour affiché comme ligne cible avec choix d'affichage par semaine, mois et année
 Ajouter graphiques de suivi d'heure d'arrivée et/ou de départ avec choix d'affichage de la semaine en cours, du mois ou de l'année.
