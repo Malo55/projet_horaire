@@ -752,13 +752,15 @@ safeAddEventListener('export-excel', 'click', function() {
         'Heures travaillées',
         'Écart'
     ];
+    
+    // Ajouter les colonnes RHT si nécessaire (sera vérifié mois par mois)
+    const headerWithRHT = [...header, 'Heures écrêtées', 'RHT supplémentaire'];
+    
     // Création du classeur
     const wb = XLSX.utils.book_new();
     for (let m = 1; m <= 12; m++) {
         const moisStr = String(m).padStart(2, '0');
         const data = [];
-        // En-tête
-        data.push(header);
         
         // Vérifier si une phase RHT est active dans ce mois
         let hasRHTInMonth = false;
@@ -767,6 +769,10 @@ safeAddEventListener('export-excel', 'click', function() {
                 return isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
             });
         }
+        
+        // En-tête : utiliser l'en-tête avec RHT si nécessaire
+        const currentHeader = hasRHTInMonth ? headerWithRHT : header;
+        data.push(currentHeader);
         
         // Lignes de jours
         moisData[moisStr].forEach(jour => {
@@ -823,7 +829,8 @@ safeAddEventListener('export-excel', 'click', function() {
             let heuresTravFormatted = heuresTrav.toFixed(2).replace('.', ',');
             let ecartFormatted = ecart.toFixed(2).replace('.', ',');
             
-            data.push([
+            // Préparer les données de base
+            let rowData = [
                 dateFmt,
                 jour.arrivee || '',
                 ...avantCells,
@@ -833,7 +840,26 @@ safeAddEventListener('export-excel', 'click', function() {
                 jour.depart || '',
                 heuresTravFormatted,
                 ecartFormatted
-            ]);
+            ];
+            
+            // Ajouter les colonnes RHT si nécessaire
+            if (hasRHTInMonth) {
+                if (isRhtDay && !(isVac || isRtt)) {
+                    // Mode RHT : calculer les heures écrêtées et RHT supplémentaire
+                    if (ecart > 0) {
+                        rowData.push(ecart.toFixed(2).replace('.', ','), ''); // Heures écrêtées
+                    } else if (ecart < 0) {
+                        rowData.push('', Math.abs(ecart).toFixed(2).replace('.', ',')); // RHT supplémentaire
+                    } else {
+                        rowData.push('', ''); // Pas d'écart
+                    }
+                } else {
+                    // Mode standard : pas de colonnes RHT
+                    rowData.push('', '');
+                }
+            }
+            
+            data.push(rowData);
         });
         
         // Ligne de totaux
@@ -867,14 +893,64 @@ safeAddEventListener('export-excel', 'click', function() {
                 }
             });
             
-            let totalRow = Array(header.length).fill('');
-            totalRow[header.indexOf('Heures travaillées')] = totalHeures.toFixed(2).replace('.', ',');
-            totalRow[header.indexOf('Écart')] = totalEcart.toFixed(2).replace('.', ',');
+            let totalRow = Array(currentHeader.length).fill('');
+            totalRow[currentHeader.indexOf('Départ')] = 'TOTAL'; // Libellé "TOTAL" dans la colonne Départ
+            totalRow[currentHeader.indexOf('Heures travaillées')] = totalHeures.toFixed(2).replace('.', ',');
+            totalRow[currentHeader.indexOf('Écart')] = totalEcart.toFixed(2).replace('.', ',');
+            
+            // Ajouter les totaux RHT si nécessaire
+            if (hasRHTInMonth) {
+                let totalHeuresEcretees = 0, totalRHTSupp = 0;
+                
+                moisData[moisStr].forEach(jour => {
+                    const isRhtDay = isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+                    const isVac = isJourVacances(jour.date);
+                    const isRtt = isJourRTT(jour.date);
+                    
+                    if (isRhtDay && !(isVac || isRtt)) {
+                        // Mode RHT : recalcul
+                        const pauseOffEff = getPauseOfferteEffective(jour.date);
+                        const heuresTrav = parseFloat(calculerHeuresAvecPause(
+                            jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                            jour.pausesAvant, jour.pausesApres,
+                            pauseOffEff,
+                            true
+                        ));
+                        const heuresJourEff = getHeuresJourMinutesEffective(jour.date) / 60;
+                        const ecart = heuresTrav - heuresJourEff;
+                        
+                        if (ecart > 0) {
+                            totalHeuresEcretees += ecart; // Heures écrêtées
+                        } else if (ecart < 0) {
+                            totalRHTSupp += Math.abs(ecart); // RHT supplémentaire
+                        }
+                    }
+                });
+                
+                totalRow[currentHeader.indexOf('Heures écrêtées')] = totalHeuresEcretees.toFixed(2).replace('.', ',');
+                totalRow[currentHeader.indexOf('RHT supplémentaire')] = totalRHTSupp.toFixed(2).replace('.', ',');
+            }
+            
             data.push(totalRow);
         }
         
         // Création de la feuille
         const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        // Ajustement automatique de la largeur des colonnes
+        const colWidths = [];
+        for (let col = 0; col < header.length; col++) {
+            let maxWidth = header[col].length;
+            for (let row = 1; row < data.length; row++) {
+                const cellValue = data[row][col];
+                if (cellValue && cellValue.toString().length > maxWidth) {
+                    maxWidth = cellValue.toString().length;
+                }
+            }
+            colWidths.push({ wch: Math.min(Math.max(maxWidth + 2, 8), 50) }); // Min 8, Max 50
+        }
+        ws['!cols'] = colWidths;
+        
         // Nom de feuille : MM.YY-RHT si RHT actif, sinon MM.YY
         const sheetName = hasRHTInMonth ? `${moisStr}.${anneeStr.slice(2)}-RHT` : `${moisStr}.${anneeStr.slice(2)}`;
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -3534,6 +3610,11 @@ safeAddEventListener('export-excel-mois', 'click', function() {
         'Heures travaillées',
         'Écart'
     ];
+    
+    // Ajouter les colonnes RHT si nécessaire
+    if (hasRHTInMonth) {
+        header.push('Heures écrêtées', 'RHT supplémentaire');
+    }
     // Préparation des données
     const data = [];
     data.push(header);
@@ -3591,7 +3672,8 @@ safeAddEventListener('export-excel-mois', 'click', function() {
         let heuresTravFormatted = heuresTrav.toFixed(2).replace('.', ',');
         let ecartFormatted = ecart.toFixed(2).replace('.', ',');
         
-        data.push([
+        // Préparer les données de base
+        let rowData = [
             dateFmt,
             jour.arrivee || '',
             ...avantCells,
@@ -3601,7 +3683,26 @@ safeAddEventListener('export-excel-mois', 'click', function() {
             jour.depart || '',
             heuresTravFormatted,
             ecartFormatted
-        ]);
+        ];
+        
+        // Ajouter les colonnes RHT si nécessaire
+        if (hasRHTInMonth) {
+            if (isRhtDay && !(isVac || isRtt)) {
+                // Mode RHT : calculer les heures écrêtées et RHT supplémentaire
+                if (ecart > 0) {
+                    rowData.push(ecart.toFixed(2).replace('.', ','), ''); // Heures écrêtées
+                } else if (ecart < 0) {
+                    rowData.push('', Math.abs(ecart).toFixed(2).replace('.', ',')); // RHT supplémentaire
+                } else {
+                    rowData.push('', ''); // Pas d'écart
+                }
+            } else {
+                // Mode standard : pas de colonnes RHT
+                rowData.push('', '');
+            }
+        }
+        
+        data.push(rowData);
     });
     
     // Ligne de totaux
@@ -3636,13 +3737,63 @@ safeAddEventListener('export-excel-mois', 'click', function() {
         });
         
         let totalRow = Array(header.length).fill('');
+        totalRow[header.indexOf('Départ')] = 'TOTAL'; // Libellé "TOTAL" dans la colonne Départ
         totalRow[header.indexOf('Heures travaillées')] = totalHeures.toFixed(2).replace('.', ',');
         totalRow[header.indexOf('Écart')] = totalEcart.toFixed(2).replace('.', ',');
+        
+        // Ajouter les totaux RHT si nécessaire
+        if (hasRHTInMonth) {
+            let totalHeuresEcretees = 0, totalRHTSupp = 0;
+            
+            joursMois.forEach(jour => {
+                const isRhtDay = isDateInRHT(jour.date) || isDateInRHTPhase1(jour.date);
+                const isVac = isJourVacances(jour.date);
+                const isRtt = isJourRTT(jour.date);
+                
+                if (isRhtDay && !(isVac || isRtt)) {
+                    // Mode RHT : recalcul
+                    const pauseOffEff = getPauseOfferteEffective(jour.date);
+                    const heuresTrav = parseFloat(calculerHeuresAvecPause(
+                        jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                        jour.pausesAvant, jour.pausesApres,
+                        pauseOffEff,
+                        true
+                    ));
+                    const heuresJourEff = getHeuresJourMinutesEffective(jour.date) / 60;
+                    const ecart = heuresTrav - heuresJourEff;
+                    
+                    if (ecart > 0) {
+                        totalHeuresEcretees += ecart; // Heures écrêtées
+                    } else if (ecart < 0) {
+                        totalRHTSupp += Math.abs(ecart); // RHT supplémentaire
+                    }
+                }
+            });
+            
+            totalRow[header.indexOf('Heures écrêtées')] = totalHeuresEcretees.toFixed(2).replace('.', ',');
+            totalRow[header.indexOf('RHT supplémentaire')] = totalRHTSupp.toFixed(2).replace('.', ',');
+        }
+        
         data.push(totalRow);
     }
     
     // Création de la feuille et du fichier
     const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    // Ajustement automatique de la largeur des colonnes
+    const colWidths = [];
+    for (let col = 0; col < header.length; col++) {
+        let maxWidth = header[col].length;
+        for (let row = 1; row < data.length; row++) {
+            const cellValue = data[row][col];
+            if (cellValue && cellValue.toString().length > maxWidth) {
+                maxWidth = cellValue.toString().length;
+            }
+        }
+        colWidths.push({ wch: Math.min(Math.max(maxWidth + 2, 8), 50) }); // Min 8, Max 50
+    }
+    ws['!cols'] = colWidths;
+    
     // Nom de feuille : MM.YY-RHT si RHT actif, sinon MM.YY
     const moisYY = hasRHTInMonth ? `${moisStr}.${anneeStr.slice(2)}-RHT` : `${moisStr}.${anneeStr.slice(2)}`;
     const wb = XLSX.utils.book_new();
