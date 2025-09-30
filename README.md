@@ -1,3 +1,7 @@
+À AJOUTER :
+Affichage + calcul HH:MM:SS
+Afficher dans dashboard mensuel le nombre d'heures de RHT faite sur le mois
+
 À MODIFIER :
 dans l'export, rajouter le nom TOTAL a coté du total + rajouter quand rht de l'ecretage
 quand je clique sur une case, et que ensuite je rentre les horaire et que je valide, la case reste bleue au lieu de devenir verte avec le tour vert comme quand on clique sur une case ou il y a deja des horaires renseignés
