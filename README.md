@@ -1,6 +1,7 @@
 À AJOUTER :
 Affichage + calcul HH:MM:SS
 Afficher dans dashboard mensuel le nombre d'heures de RHT faite sur le mois
+Ajouter la possibilité de renseigner "visite externe" sur une plage horaire avec la reègle de 1h de pause dej
 
 À MODIFIER :
 dans l'export, rajouter le nom TOTAL a coté du total + rajouter quand rht de l'ecretage
