@@ -1649,10 +1649,23 @@ let plageMidiMax = 840; // 14:00 en minutes
 let plageDepartMin = 945; // 15:45 en minutes
 let plageDepartMax = 1080; // 18:00 en minutes
 // Plages RHT (arrivée/départ)
-let rhtPlageArriveeMin = parseInt(localStorage.getItem('rhtPlageArriveeMin')) || 480;
-let rhtPlageArriveeMax = parseInt(localStorage.getItem('rhtPlageArriveeMax')) || 600;
-let rhtPlageDepartMin = parseInt(localStorage.getItem('rhtPlageDepartMin')) || 945;
-let rhtPlageDepartMax = parseInt(localStorage.getItem('rhtPlageDepartMax')) || 1080;
+// Variables pour compatibilité avec l'ancien code - seront mises à jour dynamiquement
+let rhtPlageArriveeMin = 480;
+let rhtPlageArriveeMax = 600;
+let rhtPlageDepartMin = 945;
+let rhtPlageDepartMax = 1080;
+
+// Fonction pour mettre à jour les variables globales RHT selon la date du jour
+function mettreAJourPlagesRHTGlobales() {
+    const plages = obtenirPlagesHorairesRHTAujourdhui();
+    rhtPlageArriveeMin = plages.arriveeMin;
+    rhtPlageArriveeMax = plages.arriveeMax;
+    rhtPlageDepartMin = plages.departMin;
+    rhtPlageDepartMax = plages.departMax;
+}
+
+// Mettre à jour les plages globales au chargement et quand nécessaire
+mettreAJourPlagesRHTGlobales();
 const plageArriveeMinInput = document.getElementById('plage-arrivee-min');
 const plageArriveeMaxInput = document.getElementById('plage-arrivee-max');
 const plageMidiMinInput = document.getElementById('plage-midi-min');
@@ -1997,6 +2010,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     checkbox.checked = joursTravail[jour];
                 }
             });
+            
+            // Charger les périodes RHT
+            if (typeof afficherPeriodesRHT === 'function') {
+                afficherPeriodesRHT('phase1');
+                afficherPeriodesRHT('phase2');
+                afficherMessageChevauchement();
+            }
             
             if (parametresModalBg) parametresModalBg.style.display = 'flex';
         });
@@ -4135,52 +4155,581 @@ function gererAffichageModuleRHT(moduleType, rhtEnabled) {
     }
 }
 
-// Fonction pour vérifier le chevauchement des plages RHT
-function verifierChevauchementRHT() {
-    const phase1Enabled = localStorage.getItem('param-rht-phase1-enabled') === 'true';
-    const phase2Enabled = localStorage.getItem('rht_enabled') === 'true';
-    
-    if (!phase1Enabled || !phase2Enabled) {
-        return { hasOverlap: false, message: '' };
+// ============================================
+// GESTION DES PÉRIODES RHT (Phase 1 et Phase 2)
+// ============================================
+
+// Fonction pour générer un ID unique
+function genererIdUnique() {
+    return 'rht-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+// Fonction de conversion de date JJ.MM.AA vers ISO (YYYY-MM-DD)
+function toISO(jjmmaaaa) {
+    if (!jjmmaaaa || !/^\d{2}\.\d{2}\.\d{2}$/.test(jjmmaaaa)) return null;
+    const [jj, mm, aa] = jjmmaaaa.split('.');
+    const yyyy = parseInt(aa, 10) + 2000;
+    return `${yyyy}-${mm}-${jj}`;
+}
+
+// Fonction de conversion ISO vers JJ.MM.AA
+function toJJMMAA(isoDate) {
+    if (!isoDate) return '';
+    const [yyyy, mm, jj] = isoDate.split('-');
+    const aa = parseInt(yyyy, 10) - 2000;
+    return `${jj}.${mm}.${String(aa).padStart(2, '0')}`;
+}
+
+// Migration des données RHT de l'ancien format vers le nouveau
+function migrerDonneesRHT() {
+    // Vérifier si la migration a déjà été faite
+    if (localStorage.getItem('rht_migration_done') === 'true') {
+        return;
     }
-    
+
+    const periodesPhase1 = [];
+    const periodesPhase2 = [];
+
+    // Migration Phase 1
+    const phase1Enabled = localStorage.getItem('param-rht-phase1-enabled') === 'true';
     const phase1Debut = localStorage.getItem('param-rht-phase1-debut') || '';
     const phase1Fin = localStorage.getItem('param-rht-phase1-fin') || '';
+
+    if (phase1Enabled && phase1Debut && phase1Fin && /^\d{2}\.\d{2}\.\d{2}$/.test(phase1Debut) && /^\d{2}\.\d{2}\.\d{2}$/.test(phase1Fin)) {
+        periodesPhase1.push({
+            id: genererIdUnique(),
+            enabled: true,
+            debut: phase1Debut,
+            fin: phase1Fin
+        });
+    }
+
+    // Migration Phase 2
+    const phase2Enabled = localStorage.getItem('rht_enabled') === 'true';
     const phase2Debut = localStorage.getItem('rht_debut') || '';
     const phase2Fin = localStorage.getItem('rht_fin') || '';
-    
-    // Vérifier que les plages sont complètes
-    if (!phase1Debut || !phase1Fin || !phase2Debut || !phase2Fin) {
-        return { hasOverlap: false, message: '' };
+    const phase2HeuresDec = localStorage.getItem('rht_heures_dec') || '';
+    const phase2HeuresHHMM = localStorage.getItem('rht_heures_hhmm') || '';
+    const phase2PauseOfferte = localStorage.getItem('rht_pause_offerte') || '';
+    const phase2ArriveeMin = localStorage.getItem('rhtPlageArriveeMin') || '';
+    const phase2ArriveeMax = localStorage.getItem('rhtPlageArriveeMax') || '';
+    const phase2DepartMin = localStorage.getItem('rhtPlageDepartMin') || '';
+    const phase2DepartMax = localStorage.getItem('rhtPlageDepartMax') || '';
+
+    if (phase2Enabled && phase2Debut && phase2Fin && /^\d{2}\.\d{2}\.\d{2}$/.test(phase2Debut) && /^\d{2}\.\d{2}\.\d{2}$/.test(phase2Fin)) {
+        // Convertir les minutes en HH:MM pour les plages horaires
+        function minutesToHHMM(minutes) {
+            if (!minutes || isNaN(parseInt(minutes))) return '';
+            const mins = parseInt(minutes);
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+        }
+
+        periodesPhase2.push({
+            id: genererIdUnique(),
+            enabled: true,
+            debut: phase2Debut,
+            fin: phase2Fin,
+            heuresJour: phase2HeuresDec ? parseFloat(phase2HeuresDec.replace(',', '.')) : null,
+            heuresJourHHMM: phase2HeuresHHMM || '',
+            pauseOfferte: phase2PauseOfferte ? parseInt(phase2PauseOfferte) : null,
+            plageArriveeMin: minutesToHHMM(phase2ArriveeMin),
+            plageArriveeMax: minutesToHHMM(phase2ArriveeMax),
+            plageDepartMin: minutesToHHMM(phase2DepartMin),
+            plageDepartMax: minutesToHHMM(phase2DepartMax)
+        });
     }
-    
-    // Convertir les dates au format ISO
-    function toISO(jjmmaaaa2) {
-        const [jj, mm, aa] = jjmmaaaa2.split('.');
-        const yyyy = parseInt(aa, 10) + 2000;
-        return `${yyyy}-${mm}-${jj}`;
+
+    // Sauvegarder les périodes migrées
+    if (periodesPhase1.length > 0) {
+        localStorage.setItem('rht_periodes_phase1', JSON.stringify(periodesPhase1));
     }
-    
+    if (periodesPhase2.length > 0) {
+        localStorage.setItem('rht_periodes_phase2', JSON.stringify(periodesPhase2));
+    }
+
+    // Marquer la migration comme effectuée
+    localStorage.setItem('rht_migration_done', 'true');
+}
+
+// Charger les périodes RHT d'une phase
+function chargerPeriodesRHT(phase) {
+    const key = phase === 'phase1' ? 'rht_periodes_phase1' : 'rht_periodes_phase2';
+    const periodesStr = localStorage.getItem(key);
+    if (!periodesStr) return [];
     try {
-        const p1Start = toISO(phase1Debut);
-        const p1End = toISO(phase1Fin);
-        const p2Start = toISO(phase2Debut);
-        const p2End = toISO(phase2Fin);
+        return JSON.parse(periodesStr);
+    } catch (e) {
+        console.error('Erreur lors du chargement des périodes RHT:', e);
+        return [];
+    }
+}
+
+// Sauvegarder les périodes RHT d'une phase
+function sauvegarderPeriodesRHT(phase, periodes) {
+    const key = phase === 'phase1' ? 'rht_periodes_phase1' : 'rht_periodes_phase2';
+    localStorage.setItem(key, JSON.stringify(periodes));
+}
+
+// Obtenir toutes les périodes RHT d'une phase
+function obtenirPeriodesRHT(phase) {
+    return chargerPeriodesRHT(phase);
+}
+
+// Obtenir une période RHT par son ID
+function obtenirPeriodeRHT(phase, periodeId) {
+    const periodes = chargerPeriodesRHT(phase);
+    return periodes.find(p => p.id === periodeId) || null;
+}
+
+// Ajouter une période RHT
+function ajouterPeriodeRHT(phase, periodeData = {}) {
+    const periodes = chargerPeriodesRHT(phase);
+    
+    // Valeurs par défaut selon la phase
+    let nouvellePeriode;
+    if (phase === 'phase1') {
+        nouvellePeriode = {
+            id: genererIdUnique(),
+            enabled: periodeData.enabled !== undefined ? periodeData.enabled : true,
+            debut: periodeData.debut || '',
+            fin: periodeData.fin || ''
+        };
+    } else { // phase2
+        nouvellePeriode = {
+            id: genererIdUnique(),
+            enabled: periodeData.enabled !== undefined ? periodeData.enabled : true,
+            debut: periodeData.debut || '',
+            fin: periodeData.fin || '',
+            heuresJour: periodeData.heuresJour || null,
+            heuresJourHHMM: periodeData.heuresJourHHMM || '',
+            pauseOfferte: periodeData.pauseOfferte || null,
+            plageArriveeMin: periodeData.plageArriveeMin || '',
+            plageArriveeMax: periodeData.plageArriveeMax || '',
+            plageDepartMin: periodeData.plageDepartMin || '',
+            plageDepartMax: periodeData.plageDepartMax || ''
+        };
+    }
+
+    periodes.push(nouvellePeriode);
+    sauvegarderPeriodesRHT(phase, periodes);
+    return nouvellePeriode;
+}
+
+// Supprimer une période RHT
+function supprimerPeriodeRHT(phase, periodeId) {
+    const periodes = chargerPeriodesRHT(phase);
+    const nouvellesPeriodes = periodes.filter(p => p.id !== periodeId);
+    sauvegarderPeriodesRHT(phase, nouvellesPeriodes);
+    return nouvellesPeriodes;
+}
+
+// Modifier une période RHT
+function modifierPeriodeRHT(phase, periodeId, updates) {
+    const periodes = chargerPeriodesRHT(phase);
+    const index = periodes.findIndex(p => p.id === periodeId);
+    if (index === -1) return null;
+    
+    periodes[index] = { ...periodes[index], ...updates };
+    sauvegarderPeriodesRHT(phase, periodes);
+    return periodes[index];
+}
+
+// Générer le HTML d'une période RHT Phase 1
+function genererHTMLPhase1(periode) {
+    const enabledClass = periode.enabled ? '' : 'opacity:0.6;';
+    return `
+        <div class="rht-period-block" data-period-id="${periode.id}" data-phase="phase1" style="background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:16px; margin-bottom:12px; position:relative; ${enabledClass}">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <label style="min-width:90px; font-size:13px;">Période :</label>
+                <input type="text" class="input-period-debut" data-period-id="${periode.id}" data-phase="phase1" value="${periode.debut || ''}" placeholder="JJ.MM.AA" style="width:90px; text-align:center; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:13px;" inputmode="numeric" autocomplete="off">
+                <span style="font-size:13px;">à</span>
+                <input type="text" class="input-period-fin" data-period-id="${periode.id}" data-phase="phase1" value="${periode.fin || ''}" placeholder="JJ.MM.AA" style="width:90px; text-align:center; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:13px;" inputmode="numeric" autocomplete="off">
+                <button type="button" class="btn-add-period-after" data-period-id="${periode.id}" data-phase="phase1" style="margin-left:8px; font-size:1.2em;" title="Ajouter une période après">+</button>
+                <button type="button" class="btn-toggle-period" data-period-id="${periode.id}" data-phase="phase1" style="margin-left:4px; font-size:1.2em; cursor:pointer;" title="${periode.enabled ? 'Désactiver' : 'Activer'}">${periode.enabled ? '✓' : '○'}</button>
+                <button type="button" class="btn-delete-period" data-period-id="${periode.id}" data-phase="phase1" style="margin-left:4px; font-size:1.2em;" title="Supprimer">🗑️</button>
+            </div>
+        </div>
+    `;
+}
+
+// Générer le HTML d'une période RHT Phase 2
+function genererHTMLPhase2(periode) {
+    const enabledClass = periode.enabled ? '' : 'opacity:0.6;';
+    
+    // Fonction de conversion minutes vers HH:MM
+    function minutesToHHMM(minutes) {
+        if (!minutes || isNaN(parseInt(minutes))) return '';
+        const mins = parseInt(minutes);
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+    
+    // Convertir les minutes en HH:MM si nécessaire
+    const plageArriveeMin = periode.plageArriveeMin || '';
+    const plageArriveeMax = periode.plageArriveeMax || '';
+    const plageDepartMin = periode.plageDepartMin || '';
+    const plageDepartMax = periode.plageDepartMax || '';
+    
+    return `
+        <div class="rht-period-block" data-period-id="${periode.id}" data-phase="phase2" style="background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:16px; margin-bottom:12px; position:relative; ${enabledClass}">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <label style="min-width:90px; font-size:13px;">Période :</label>
+                    <input type="text" class="input-period-debut" data-period-id="${periode.id}" data-phase="phase2" value="${periode.debut || ''}" placeholder="JJ.MM.AA" style="width:90px; text-align:center; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:13px;" inputmode="numeric" autocomplete="off">
+                    <span style="font-size:13px;">à</span>
+                    <input type="text" class="input-period-fin" data-period-id="${periode.id}" data-phase="phase2" value="${periode.fin || ''}" placeholder="JJ.MM.AA" style="width:90px; text-align:center; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:13px;" inputmode="numeric" autocomplete="off">
+                    <button type="button" class="btn-add-period-after" data-period-id="${periode.id}" data-phase="phase2" style="margin-left:8px; font-size:1.2em;" title="Ajouter une période après">+</button>
+                    <button type="button" class="btn-toggle-period" data-period-id="${periode.id}" data-phase="phase2" style="margin-left:4px; font-size:1.2em; cursor:pointer;" title="${periode.enabled ? 'Désactiver' : 'Activer'}">${periode.enabled ? '✓' : '○'}</button>
+                    <button type="button" class="btn-delete-period" data-period-id="${periode.id}" data-phase="phase2" style="margin-left:4px; font-size:1.2em;" title="Supprimer">🗑️</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <label style="min-width:90px; font-size:13px;">Heures/jour :</label>
+                    <input type="number" class="input-period-heures-dec" data-period-id="${periode.id}" data-phase="phase2" value="${periode.heuresJour !== null && periode.heuresJour !== undefined ? periode.heuresJour : ''}" step="0.01" style="width:90px; text-align:center; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:13px;">
+                    <span style="font-weight:bold; font-size:13px;">=</span>
+                    <input type="text" class="input-period-heures-hhmm" data-period-id="${periode.id}" data-phase="phase2" value="${periode.heuresJourHHMM || ''}" placeholder="HH:MM" style="width:80px; text-align:center; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:13px;" inputmode="numeric" autocomplete="off">
+                </div>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <label style="min-width:90px; font-size:13px;">Pause offerte :</label>
+                    <input type="number" class="input-period-pause" data-period-id="${periode.id}" data-phase="phase2" value="${periode.pauseOfferte !== null && periode.pauseOfferte !== undefined ? periode.pauseOfferte : ''}" min="0" step="1" style="width:100px; text-align:center; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:13px;">
+                    <span style="font-size:13px;">min</span>
+                </div>
+                <div style="background:#f8f9fa; border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                        <label style="min-width:90px; font-size:12px;">Plage d'arrivée :</label>
+                        <input type="text" class="input-period-arrivee-min" data-period-id="${periode.id}" data-phase="phase2" value="${plageArriveeMin}" placeholder="HH:MM" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:13px; text-align:center;" inputmode="numeric" autocomplete="off">
+                        <span style="font-size:12px;">à</span>
+                        <input type="text" class="input-period-arrivee-max" data-period-id="${periode.id}" data-phase="phase2" value="${plageArriveeMax}" placeholder="HH:MM" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:13px; text-align:center;" inputmode="numeric" autocomplete="off">
+                    </div>
+                    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                        <label style="min-width:90px; font-size:12px;">Plage de départ :</label>
+                        <input type="text" class="input-period-depart-min" data-period-id="${periode.id}" data-phase="phase2" value="${plageDepartMin}" placeholder="HH:MM" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:13px; text-align:center;" inputmode="numeric" autocomplete="off">
+                        <span style="font-size:12px;">à</span>
+                        <input type="text" class="input-period-depart-max" data-period-id="${periode.id}" data-phase="phase2" value="${plageDepartMax}" placeholder="HH:MM" style="width:80px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:13px; text-align:center;" inputmode="numeric" autocomplete="off">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Afficher toutes les périodes RHT d'une phase
+function afficherPeriodesRHT(phase) {
+    const container = document.getElementById(`rht-${phase}-container`);
+    if (!container) return;
+    
+    const periodes = chargerPeriodesRHT(phase);
+    
+    // Trier les périodes par date de début
+    const periodesTriees = [...periodes].sort((a, b) => {
+        const dateA = toISO(a.debut);
+        const dateB = toISO(b.debut);
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateA.localeCompare(dateB);
+    });
+    
+    container.innerHTML = '';
+    
+    if (periodesTriees.length === 0) {
+        // Afficher un bouton + pour créer la première période
+        const addButton = document.createElement('button');
+        addButton.type = 'button';
+        addButton.textContent = '+';
+        addButton.style.fontSize = '1.2em';
+        addButton.style.padding = '8px 16px';
+        addButton.style.cursor = 'pointer';
+        addButton.addEventListener('click', function() {
+            ajouterPeriodeRHT(phase);
+            afficherPeriodesRHT(phase);
+            actualiserAffichageRHT();
+        });
+        container.appendChild(addButton);
+        return;
+    }
+    
+    periodesTriees.forEach(periode => {
+        const html = phase === 'phase1' ? genererHTMLPhase1(periode) : genererHTMLPhase2(periode);
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        container.appendChild(div.firstElementChild);
+    });
+    
+    // Initialiser les formatages et event listeners après l'insertion
+    initialiserPeriodesRHT(phase);
+}
+
+// Initialiser les formatages et event listeners pour une phase
+function initialiserPeriodesRHT(phase) {
+    const container = document.getElementById(`rht-${phase}-container`);
+    if (!container) return;
+    
+    // Formatage automatique des champs JJ.MM.AA
+    container.querySelectorAll('.input-period-debut, .input-period-fin').forEach(input => {
+        formatJJMMAAInput(input);
         
-        // Vérifier le chevauchement
-        const hasOverlap = !(p1End < p2Start || p2End < p1Start);
+        // Sauvegarde et validation au blur
+        input.addEventListener('blur', function() {
+            const periodeId = this.dataset.periodId;
+            const field = this.classList.contains('input-period-debut') ? 'debut' : 'fin';
+            modifierPeriodeRHT(phase, periodeId, { [field]: this.value });
+            actualiserAffichageRHT();
+        });
+    });
+    
+    // Phase 2 : gestion des champs supplémentaires
+    if (phase === 'phase2') {
+        // Synchronisation heures décimal <-> HH:MM
+        container.querySelectorAll('.input-period-heures-dec').forEach(input => {
+            const periodeId = input.dataset.periodId;
+            const hhmmInput = container.querySelector(`.input-period-heures-hhmm[data-period-id="${periodeId}"]`);
+            
+            if (hhmmInput) {
+                input.addEventListener('input', function() {
+                    const dec = parseFloat(this.value.replace(',', '.'));
+                    if (!isNaN(dec)) {
+                        const h = Math.floor(dec);
+                        const m = Math.round((dec - h) * 60);
+                        hhmmInput.value = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+                        modifierPeriodeRHT(phase, periodeId, {
+                            heuresJour: dec,
+                            heuresJourHHMM: hhmmInput.value
+                        });
+                        actualiserAffichageRHT();
+                    }
+                });
+            }
+        });
         
-        if (hasOverlap) {
-            return {
-                hasOverlap: true,
-                message: '⚠️ Erreur : Les plages RHT Phase 1 et Phase 2 se chevauchent. Veuillez ajuster les dates.'
-            };
+        container.querySelectorAll('.input-period-heures-hhmm').forEach(input => {
+            const periodeId = input.dataset.periodId;
+            const decInput = container.querySelector(`.input-period-heures-dec[data-period-id="${periodeId}"]`);
+            
+            if (decInput) {
+                input.addEventListener('input', function() {
+                    if (/^\d{2}:\d{2}$/.test(this.value)) {
+                        const [h, m] = this.value.split(':').map(Number);
+                        const dec = h + m / 60;
+                        decInput.value = dec.toFixed(2).replace('.', ',');
+                        modifierPeriodeRHT(phase, periodeId, {
+                            heuresJour: dec,
+                            heuresJourHHMM: this.value
+                        });
+                        actualiserAffichageRHT();
+                    }
+                });
+            }
+        });
+        
+        // Pause offerte
+        container.querySelectorAll('.input-period-pause').forEach(input => {
+            input.addEventListener('blur', function() {
+                const periodeId = this.dataset.periodId;
+                const pause = parseInt(this.value) || null;
+                modifierPeriodeRHT(phase, periodeId, { pauseOfferte: pause });
+                actualiserAffichageRHT();
+            });
+        });
+        
+        // Plages horaires
+        container.querySelectorAll('.input-period-arrivee-min, .input-period-arrivee-max, .input-period-depart-min, .input-period-depart-max').forEach(input => {
+            input.addEventListener('blur', function() {
+                const periodeId = this.dataset.periodId;
+                const field = this.classList.contains('input-period-arrivee-min') ? 'plageArriveeMin' :
+                              this.classList.contains('input-period-arrivee-max') ? 'plageArriveeMax' :
+                              this.classList.contains('input-period-depart-min') ? 'plageDepartMin' :
+                              'plageDepartMax';
+                
+                modifierPeriodeRHT(phase, periodeId, { [field]: this.value });
+                actualiserAffichageRHT();
+            });
+        });
+    }
+}
+
+// Fonction utilitaire pour formater les inputs JJ.MM.AA
+function formatJJMMAAInput(input) {
+    if (!input) return;
+    input.addEventListener('input', function() {
+        let v = input.value.replace(/[^0-9]/g, '').slice(0, 6);
+        if (v.length >= 5) input.value = v.slice(0, 2) + '.' + v.slice(2, 4) + '.' + v.slice(4, 6);
+        else if (v.length >= 3) input.value = v.slice(0, 2) + '.' + v.slice(2, 4);
+        else input.value = v;
+    });
+}
+
+// Actualiser l'affichage et les calculs RHT
+function actualiserAffichageRHT() {
+    // Mettre à jour les plages horaires globales
+    mettreAJourPlagesRHTGlobales();
+    
+    // Vérifier les chevauchements
+    afficherMessageChevauchement();
+    
+    // Mettre à jour le tableau des jours si la fonction existe
+    if (typeof afficherJours === 'function') {
+        afficherJours();
+    }
+    
+    // Mettre à jour l'affichage des modules RHT
+    if (typeof initialiserAffichageModulesRHT === 'function') {
+        initialiserAffichageModulesRHT();
+    }
+}
+
+// Gestion des événements pour les boutons des périodes (délégation d'événements)
+function initialiserGestionPeriodesRHT() {
+    // Conteneur principal de la section RHT
+    const sectionRHT = document.getElementById('parametres-rht-section');
+    if (!sectionRHT) return;
+    
+    // Délégation d'événements pour les boutons
+    sectionRHT.addEventListener('click', function(e) {
+        // Bouton supprimer
+        if (e.target.classList.contains('btn-delete-period') || e.target.closest('.btn-delete-period')) {
+            const btn = e.target.classList.contains('btn-delete-period') ? e.target : e.target.closest('.btn-delete-period');
+            const periodeId = btn.dataset.periodId;
+            const phase = btn.dataset.phase;
+            
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette période ?')) {
+                supprimerPeriodeRHT(phase, periodeId);
+                afficherPeriodesRHT(phase);
+                actualiserAffichageRHT();
+            }
+            e.stopPropagation();
+            return;
         }
         
-        return { hasOverlap: false, message: '' };
-    } catch (error) {
-        return { hasOverlap: false, message: '' };
+        // Bouton ajouter après
+        if (e.target.classList.contains('btn-add-period-after') || e.target.closest('.btn-add-period-after')) {
+            const btn = e.target.classList.contains('btn-add-period-after') ? e.target : e.target.closest('.btn-add-period-after');
+            const periodeId = btn.dataset.periodId;
+            const phase = btn.dataset.phase;
+            
+            ajouterPeriodeRHT(phase);
+            afficherPeriodesRHT(phase);
+            actualiserAffichageRHT();
+            e.stopPropagation();
+            return;
+        }
+        
+        // Bouton toggle activation
+        if (e.target.classList.contains('btn-toggle-period') || e.target.closest('.btn-toggle-period')) {
+            const btn = e.target.classList.contains('btn-toggle-period') ? e.target : e.target.closest('.btn-toggle-period');
+            const periodeId = btn.dataset.periodId;
+            const phase = btn.dataset.phase;
+            
+            const periode = obtenirPeriodeRHT(phase, periodeId);
+            if (periode) {
+                modifierPeriodeRHT(phase, periodeId, { enabled: !periode.enabled });
+                afficherPeriodesRHT(phase);
+                actualiserAffichageRHT();
+            }
+            e.stopPropagation();
+            return;
+        }
+    });
+    
+    // Les boutons "Ajouter une période" sont maintenant dans chaque période (bouton +)
+}
+
+// Vérifier si deux périodes se chevauchent
+function periodesSeChevauchent(periode1, periode2) {
+    if (!periode1.enabled || !periode2.enabled) return false;
+    if (!periode1.debut || !periode1.fin || !periode2.debut || !periode2.fin) return false;
+    
+    const start1 = toISO(periode1.debut);
+    const end1 = toISO(periode1.fin);
+    const start2 = toISO(periode2.debut);
+    const end2 = toISO(periode2.fin);
+    
+    if (!start1 || !end1 || !start2 || !end2) return false;
+    
+    // Vérifier le chevauchement
+    return !(end1 < start2 || end2 < start1);
+}
+
+// Fonction pour vérifier le chevauchement des plages RHT
+function verifierChevauchementsRHT(periodeExclue = null) {
+    const periodesPhase1 = chargerPeriodesRHT('phase1').filter(p => p.enabled);
+    const periodesPhase2 = chargerPeriodesRHT('phase2').filter(p => p.enabled);
+    
+    const overlaps = [];
+    
+    // Vérifier les chevauchements entre Phase 1 et Phase 2
+    for (const p1 of periodesPhase1) {
+        if (periodeExclue && periodeExclue.id === p1.id && periodeExclue.phase === 'phase1') continue;
+        
+        for (const p2 of periodesPhase2) {
+            if (periodeExclue && periodeExclue.id === p2.id && periodeExclue.phase === 'phase2') continue;
+            
+            if (periodesSeChevauchent(p1, p2)) {
+                overlaps.push({
+                    type: 'cross-phase',
+                    periode1: p1,
+                    periode2: p2,
+                    message: `⚠️ Chevauchement : Une période Phase 1 (${p1.debut} - ${p1.fin}) et une période Phase 2 (${p2.debut} - ${p2.fin}) se chevauchent.`
+                });
+            }
+        }
     }
+    
+    // Vérifier les chevauchements entre périodes de la même Phase 1
+    for (let i = 0; i < periodesPhase1.length; i++) {
+        for (let j = i + 1; j < periodesPhase1.length; j++) {
+            const p1 = periodesPhase1[i];
+            const p2 = periodesPhase1[j];
+            
+            if (periodeExclue && (periodeExclue.id === p1.id || periodeExclue.id === p2.id) && periodeExclue.phase === 'phase1') continue;
+            
+            if (periodesSeChevauchent(p1, p2)) {
+                overlaps.push({
+                    type: 'same-phase',
+                    phase: 'phase1',
+                    periode1: p1,
+                    periode2: p2,
+                    message: `⚠️ Chevauchement : Deux périodes Phase 1 se chevauchent (${p1.debut} - ${p1.fin} et ${p2.debut} - ${p2.fin}).`
+                });
+            }
+        }
+    }
+    
+    // Vérifier les chevauchements entre périodes de la même Phase 2
+    for (let i = 0; i < periodesPhase2.length; i++) {
+        for (let j = i + 1; j < periodesPhase2.length; j++) {
+            const p1 = periodesPhase2[i];
+            const p2 = periodesPhase2[j];
+            
+            if (periodeExclue && (periodeExclue.id === p1.id || periodeExclue.id === p2.id) && periodeExclue.phase === 'phase2') continue;
+            
+            if (periodesSeChevauchent(p1, p2)) {
+                overlaps.push({
+                    type: 'same-phase',
+                    phase: 'phase2',
+                    periode1: p1,
+                    periode2: p2,
+                    message: `⚠️ Chevauchement : Deux périodes Phase 2 se chevauchent (${p1.debut} - ${p1.fin} et ${p2.debut} - ${p2.fin}).`
+                });
+            }
+        }
+    }
+    
+    return {
+        hasOverlap: overlaps.length > 0,
+        overlaps: overlaps,
+        message: overlaps.length > 0 ? overlaps.map(o => o.message).join(' ') : ''
+    };
+}
+
+// Fonction pour vérifier le chevauchement (rétrocompatibilité)
+function verifierChevauchementRHT() {
+    const result = verifierChevauchementsRHT();
+    return {
+        hasOverlap: result.hasOverlap,
+        message: result.message
+    };
 }
 
 // Fonction pour afficher/masquer le message d'erreur de chevauchement
@@ -4188,7 +4737,7 @@ function afficherMessageChevauchement() {
     const messageContainer = document.getElementById('rht-overlap-message');
     if (!messageContainer) return;
     
-    const { hasOverlap, message } = verifierChevauchementRHT();
+    const { hasOverlap, message } = verifierChevauchementsRHT();
     
     if (hasOverlap) {
         messageContainer.textContent = message;
@@ -4273,6 +4822,9 @@ if (document.readyState === 'loading') {
 // ... existing code ...
 // --- Paramètres: gestion de l'onglet RHT et des champs ---
 (function() {
+    // Migration des données au chargement
+    migrerDonneesRHT();
+    
     const tabGeneral = document.getElementById('param-tab-general');
     const tabRHT = document.getElementById('param-tab-rht');
     const sectionRHT = document.getElementById('parametres-rht-section');
@@ -4289,9 +4841,23 @@ if (document.readyState === 'loading') {
         if (sectionRHT) sectionRHT.style.display = 'flex';
         if (tabRHT) { tabRHT.style.background = '#1976d2'; tabRHT.style.color = '#fff'; }
         if (tabGeneral) { tabGeneral.style.background = '#fff'; tabGeneral.style.color = '#1976d2'; }
+        
+        // Charger l'affichage des périodes quand on ouvre l'onglet RHT
+        afficherPeriodesRHT('phase1');
+        afficherPeriodesRHT('phase2');
+        afficherMessageChevauchement();
     }
     if (tabGeneral) tabGeneral.addEventListener('click', showGeneral);
     if (tabRHT) tabRHT.addEventListener('click', showRHT);
+    
+    // Initialiser la gestion des périodes
+    initialiserGestionPeriodesRHT();
+    
+    // Initialiser l'affichage au chargement si l'onglet RHT est visible
+    if (sectionRHT && sectionRHT.style.display !== 'none') {
+        afficherPeriodesRHT('phase1');
+        afficherPeriodesRHT('phase2');
+    }
 
     // Champs RHT phase 1
     const rhtPhase1Enabled = document.getElementById('param-rht-phase1-enabled');
@@ -4537,57 +5103,96 @@ if (document.readyState === 'loading') {
 })();
 // ... existing code ...
 
-// ... existing code ...
-function isDateInRHT(dateStr) {
-    const enabled = localStorage.getItem('rht_enabled') === 'true';
-    if (!enabled) return false;
-    const deb = localStorage.getItem('rht_debut') || '';
-    const fin = localStorage.getItem('rht_fin') || '';
-    if (!/^\d{2}\.\d{2}\.\d{2}$/.test(deb) || !/^\d{2}\.\d{2}\.\d{2}$/.test(fin)) return false;
-    function toISO(jjmmaaaa2) {
-        const [jj, mm, aa] = jjmmaaaa2.split('.');
-        const yyyy = parseInt(aa, 10) + 2000;
-        return `${yyyy}-${mm}-${jj}`;
+// Obtenir la période RHT active pour une date donnée
+function obtenirPeriodeRHTPourDate(dateStr, phase) {
+    const periodes = chargerPeriodesRHT(phase).filter(p => p.enabled);
+    const dateISO = dateStr;
+    
+    for (const periode of periodes) {
+        if (!periode.debut || !periode.fin) continue;
+        
+        const start = toISO(periode.debut);
+        const end = toISO(periode.fin);
+        
+        if (!start || !end) continue;
+        
+        if (dateISO >= start && dateISO <= end) {
+            return periode;
+        }
     }
-    const d = dateStr;
-    const start = toISO(deb);
-    const end = toISO(fin);
-    return d >= start && d <= end;
+    
+    return null;
 }
 
+// Vérifier si une date est dans une période RHT Phase 2
+function isDateInRHT(dateStr) {
+    const periode = obtenirPeriodeRHTPourDate(dateStr, 'phase2');
+    return periode !== null;
+}
+
+// Vérifier si une date est dans une période RHT Phase 1
 function isDateInRHTPhase1(dateStr) {
-    const enabled = localStorage.getItem('param-rht-phase1-enabled') === 'true';
-    if (!enabled) return false;
-    const deb = localStorage.getItem('param-rht-phase1-debut') || '';
-    const fin = localStorage.getItem('param-rht-phase1-fin') || '';
-    if (!/^\d{2}\.\d{2}\.\d{2}$/.test(deb) || !/^\d{2}\.\d{2}\.\d{2}$/.test(fin)) return false;
-    function toISO(jjmmaaaa2) {
-        const [jj, mm, aa] = jjmmaaaa2.split('.');
-        const yyyy = parseInt(aa, 10) + 2000;
-        return `${yyyy}-${mm}-${jj}`;
-    }
-    const d = dateStr;
-    const start = toISO(deb);
-    const end = toISO(fin);
-    return d >= start && d <= end;
+    const periode = obtenirPeriodeRHTPourDate(dateStr, 'phase1');
+    return periode !== null;
+}
+
+// Obtenir toutes les périodes RHT actives pour une date
+function obtenirPeriodesRHTPourDate(dateStr) {
+    return {
+        phase1: obtenirPeriodeRHTPourDate(dateStr, 'phase1'),
+        phase2: obtenirPeriodeRHTPourDate(dateStr, 'phase2')
+    };
 }
 
 function getHeuresJourMinutesEffective(dateStr) {
-    // Si RHT actif et date dans plage: utiliser param RHT; sinon valeur standard
-    if (isDateInRHT(dateStr)) {
-        const rhtDecStr = localStorage.getItem('rht_heures_dec');
-        let val = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : null;
-        if (isNaN(val) || val === null) val = parseFloat(localStorage.getItem('heuresJour')) || 7.5;
-        return Math.round(val * 60);
+    // Si RHT Phase 2 actif et date dans plage: utiliser param RHT; sinon valeur standard
+    const periodeRHT = obtenirPeriodeRHTPourDate(dateStr, 'phase2');
+    if (periodeRHT && periodeRHT.heuresJour !== null && !isNaN(periodeRHT.heuresJour)) {
+        return Math.round(periodeRHT.heuresJour * 60);
     }
     return (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : Math.round(((parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60));
 }
 function getPauseOfferteEffective(dateStr) {
-    if (isDateInRHT(dateStr)) {
-        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
-        if (!isNaN(rhtPause)) return rhtPause;
+    const periodeRHT = obtenirPeriodeRHTPourDate(dateStr, 'phase2');
+    if (periodeRHT && periodeRHT.pauseOfferte !== null && !isNaN(periodeRHT.pauseOfferte)) {
+        return parseInt(periodeRHT.pauseOfferte);
     }
     return parseInt(localStorage.getItem('pauseOfferte')) || 15;
+}
+
+// Convertir HH:MM en minutes
+function hhmmToMinutes(hhmm) {
+    if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+}
+
+// Obtenir les plages horaires RHT pour une date donnée (Phase 2)
+function obtenirPlagesHorairesRHT(dateStr) {
+    const periodeRHT = obtenirPeriodeRHTPourDate(dateStr, 'phase2');
+    if (!periodeRHT) {
+        // Retourner les valeurs par défaut si aucune période n'est trouvée
+        return {
+            arriveeMin: 480, // 08:00
+            arriveeMax: 600, // 10:00
+            departMin: 945,  // 15:45
+            departMax: 1080  // 18:00
+        };
+    }
+    
+    return {
+        arriveeMin: hhmmToMinutes(periodeRHT.plageArriveeMin) || 480,
+        arriveeMax: hhmmToMinutes(periodeRHT.plageArriveeMax) || 600,
+        departMin: hhmmToMinutes(periodeRHT.plageDepartMin) || 945,
+        departMax: hhmmToMinutes(periodeRHT.plageDepartMax) || 1080
+    };
+}
+
+// Obtenir les plages horaires RHT pour aujourd'hui (pour les calculatrices)
+function obtenirPlagesHorairesRHTAujourdhui() {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    return obtenirPlagesHorairesRHT(todayStr);
 }
 
 // Accumulateurs RHT
