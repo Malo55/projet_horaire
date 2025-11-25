@@ -1622,14 +1622,40 @@ function getHeuresJourMinutes() {
     if (isNaN(val)) val = 7.5;
     return Math.round(val * 60);
 }
-function getPauseSupMinutes() {
-    if (!calcPause2Debut || !calcPause2Fin) return 0;
-    const debut = toMinutes(calcPause2Debut.value);
-    const fin = toMinutes(calcPause2Fin.value);
+function getPauseApresCalculetteMinutes() {
+    const modeDuree = document.getElementById('calc-pause-apres-mode-duree');
+    const dureeInput = document.getElementById('calc-pause-apres-duree');
+    const debutInput = document.getElementById('calc-pause-apres-debut');
+    const finInput = document.getElementById('calc-pause-apres-fin');
+    
+    if (modeDuree && modeDuree.checked) {
+        const duree = dureeInput ? dureeInput.value : '';
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            return hh * 60 + mm;
+        }
+        return 0;
+    }
+    
+    const debut = debutInput ? toMinutes(debutInput.value) : null;
+    const fin = finInput ? toMinutes(finInput.value) : null;
     if (debut !== null && fin !== null && fin > debut) {
         return fin - debut;
     }
     return 0;
+}
+
+function getPauseSupMinutes() {
+    let total = 0;
+    if (calcPause2Debut && calcPause2Fin) {
+        const debut = toMinutes(calcPause2Debut.value);
+        const fin = toMinutes(calcPause2Fin.value);
+        if (debut !== null && fin !== null && fin > debut) {
+            total += (fin - debut);
+        }
+    }
+    total += getPauseApresCalculetteMinutes();
+    return total;
 }
 function getPause1Minutes() {
     const debut = toMinutes(calcPause1Debut.value);
@@ -1865,11 +1891,10 @@ function updateCalculateur() {
         arriveeMins = toMinutes(calcArrivee.value);
         checkPlage(calcArrivee, arriveeMins, calcRhtChecked ? rhtPlageArriveeMin : plageArriveeMin, calcRhtChecked ? rhtPlageArriveeMax : plageArriveeMax);
         departMins = arriveeMins + travailMins + pauseMins;
-        if (pause1Mins > pauseOfferteVal) {
-            departMins += (pause1Mins - pauseOfferteVal);
-        }
-        if (pauseSup > pauseOfferteVal) {
-            departMins += (pauseSup - pauseOfferteVal);
+        // Total des pauses (matin + pauses supplémentaires incluant après-midi)
+        const totalPauses = pause1Mins + pauseSup;
+        if (totalPauses > pauseOfferteVal) {
+            departMins += (totalPauses - pauseOfferteVal);
         }
         departMinsAvantClamp = departMins;
         // On ne corrige plus la valeur, on affiche juste le calcul
@@ -1878,11 +1903,10 @@ function updateCalculateur() {
     } else if (lastInput === 'calc-depart' && calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
         departMins = toMinutes(calcDepart.value);
         checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
-        if (pause1Mins > pauseOfferteVal) {
-            departMins -= (pause1Mins - pauseOfferteVal);
-        }
-        if (pauseSup > pauseOfferteVal) {
-            departMins -= (pauseSup - pauseOfferteVal);
+        // Total des pauses (matin + pauses supplémentaires incluant après-midi)
+        const totalPauses = pause1Mins + pauseSup;
+        if (totalPauses > pauseOfferteVal) {
+            departMins -= (totalPauses - pauseOfferteVal);
         }
         arriveeMins = departMins - travailMins - pauseMins;
         calcArrivee.value = toHHMM(arriveeMins);
@@ -1891,7 +1915,9 @@ function updateCalculateur() {
         lastInput === 'calc-pause1-debut' || lastInput === 'calc-pause1-fin' ||
         lastInput === 'calc-pause2-debut' || lastInput === 'calc-pause2-fin' ||
         lastInput === 'calc-pause-debut' || lastInput === 'calc-pause-fin' ||
+        lastInput === 'calc-pause-apres-debut' || lastInput === 'calc-pause-apres-fin' ||
         lastInput === 'calc-pause1-duree' || lastInput === 'calc-pause-midi-duree' ||
+        lastInput === 'calc-pause-apres-duree' ||
         lastInput === 'heures-jour' || lastInput === 'heures-jour-hhmm'
     ) {
         // Si l'arrivée est remplie, on recalcule le départ
@@ -1899,11 +1925,10 @@ function updateCalculateur() {
             arriveeMins = toMinutes(calcArrivee.value);
             checkPlage(calcArrivee, arriveeMins, calcRhtChecked ? rhtPlageArriveeMin : plageArriveeMin, calcRhtChecked ? rhtPlageArriveeMax : plageArriveeMax);
             departMins = arriveeMins + travailMins + pauseMins;
-            if (pause1Mins > pauseOfferteVal) {
-                departMins += (pause1Mins - pauseOfferteVal);
-            }
-            if (pauseSup > pauseOfferteVal) {
-                departMins += (pauseSup - pauseOfferteVal);
+            // Total des pauses (matin + pauses supplémentaires incluant après-midi)
+            const totalPauses = pause1Mins + pauseSup;
+            if (totalPauses > pauseOfferteVal) {
+                departMins += (totalPauses - pauseOfferteVal);
             }
             departMinsAvantClamp = departMins;
             calcDepart.value = toHHMM(departMins);
@@ -1911,11 +1936,10 @@ function updateCalculateur() {
         } else if (calcDepart.value && /^\d{2}:\d{2}$/.test(calcDepart.value)) {
             departMins = toMinutes(calcDepart.value);
             checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
-            if (pause1Mins > pauseOfferteVal) {
-                departMins -= (pause1Mins - pauseOfferteVal);
-            }
-            if (pauseSup > pauseOfferteVal) {
-                departMins -= (pauseSup - pauseOfferteVal);
+            // Total des pauses (matin + pauses supplémentaires incluant après-midi)
+            const totalPauses = pause1Mins + pauseSup;
+            if (totalPauses > pauseOfferteVal) {
+                departMins -= (totalPauses - pauseOfferteVal);
             }
             arriveeMins = departMins - travailMins - pauseMins;
             calcArrivee.value = toHHMM(arriveeMins);
@@ -1926,7 +1950,7 @@ function updateCalculateur() {
     let infoPauseSup = pauseSup > 0 ? `pause supp. de ${pauseSup} min` : 'pas de pause supp.';
     calcInfo.textContent = '';
 }
-['calcPauseDebut', 'calcPauseFin', 'calcArrivee', 'calcDepart', 'calcPause2Debut', 'calcPause2Fin', 'calcPause1Debut', 'calcPause1Fin'].forEach(id => {
+['calcPauseDebut', 'calcPauseFin', 'calcArrivee', 'calcDepart', 'calcPause2Debut', 'calcPause2Fin', 'calcPause1Debut', 'calcPause1Fin', 'calcPauseApresDebut', 'calcPauseApresFin', 'calcPauseApresDuree'].forEach(id => {
     const el = document.getElementById(id.replace(/([A-Z])/g, '-$1').toLowerCase());
     if (el) {
         el.addEventListener('input', function() { 
@@ -2215,7 +2239,7 @@ safeAddEventListener('calc-pause-debut', 'input', updateMidiIndication);
 safeAddEventListener('calc-pause-fin', 'input', updateMidiIndication);
 updateMidiIndication(); 
 
-['zero-arrivee','zero-depart','zero-pause-debut','zero-pause-fin','zero-pause1-debut','zero-pause1-fin'].forEach(id => {
+['zero-arrivee','zero-depart','zero-pause-debut','zero-pause-fin','zero-pause1-debut','zero-pause1-fin','zero-pause-apres-debut','zero-pause-apres-fin','zero-pause-apres-duree'].forEach(id => {
     const el = document.getElementById(id);
     if (el) formatHeureInput(el);
 });
@@ -2225,20 +2249,52 @@ const zeroPause1Debut = document.getElementById('zero-pause1-debut');
 const zeroPause1Fin = document.getElementById('zero-pause1-fin');
 const zeroPauseMidiDebut = document.getElementById('zero-pause-debut');
 const zeroPauseMidiFin = document.getElementById('zero-pause-fin');
+const zeroPauseApresDebutInput = document.getElementById('zero-pause-apres-debut');
+const zeroPauseApresFinInput = document.getElementById('zero-pause-apres-fin');
+const zeroPauseApresDureeInput = document.getElementById('zero-pause-apres-duree');
 
 // Restauration à l'ouverture de la page
 if (zeroPause1Debut && localStorage.getItem('zeroPause1Debut')) zeroPause1Debut.value = localStorage.getItem('zeroPause1Debut');
 if (zeroPause1Fin && localStorage.getItem('zeroPause1Fin')) zeroPause1Fin.value = localStorage.getItem('zeroPause1Fin');
 if (zeroPauseMidiDebut && localStorage.getItem('zeroPauseMidiDebut')) zeroPauseMidiDebut.value = localStorage.getItem('zeroPauseMidiDebut');
 if (zeroPauseMidiFin && localStorage.getItem('zeroPauseMidiFin')) zeroPauseMidiFin.value = localStorage.getItem('zeroPauseMidiFin');
+if (zeroPauseApresDebutInput && localStorage.getItem('zeroPauseApresDebut')) zeroPauseApresDebutInput.value = localStorage.getItem('zeroPauseApresDebut');
+if (zeroPauseApresFinInput && localStorage.getItem('zeroPauseApresFin')) zeroPauseApresFinInput.value = localStorage.getItem('zeroPauseApresFin');
+if (zeroPauseApresDureeInput && localStorage.getItem('zeroPauseApresDuree')) zeroPauseApresDureeInput.value = localStorage.getItem('zeroPauseApresDuree');
 
 // Sauvegarde à chaque modification
 if (zeroPause1Debut) safeAddEventListener('zero-pause1-debut', 'input', function() { localStorage.setItem('zeroPause1Debut', zeroPause1Debut.value); });
 if (zeroPause1Fin) safeAddEventListener('zero-pause1-fin', 'input', function() { localStorage.setItem('zeroPause1Fin', zeroPause1Fin.value); });
 if (zeroPauseMidiDebut) safeAddEventListener('zero-pause-debut', 'input', function() { localStorage.setItem('zeroPauseMidiDebut', zeroPauseMidiDebut.value); });
 if (zeroPauseMidiFin) safeAddEventListener('zero-pause-fin', 'input', function() { localStorage.setItem('zeroPauseMidiFin', zeroPauseMidiFin.value); });
+if (zeroPauseApresDebutInput) safeAddEventListener('zero-pause-apres-debut', 'input', function() { localStorage.setItem('zeroPauseApresDebut', zeroPauseApresDebutInput.value); });
+if (zeroPauseApresFinInput) safeAddEventListener('zero-pause-apres-fin', 'input', function() { localStorage.setItem('zeroPauseApresFin', zeroPauseApresFinInput.value); });
+if (zeroPauseApresDureeInput) safeAddEventListener('zero-pause-apres-duree', 'input', function() { localStorage.setItem('zeroPauseApresDuree', zeroPauseApresDureeInput.value); });
 
 // --- Calcul dynamique des heures sup du module zero ---
+function getZeroPauseApresMinutes() {
+    const modeDuree = document.getElementById('zero-pause-apres-mode-duree');
+    const dureeInput = document.getElementById('zero-pause-apres-duree');
+    const debutInput = document.getElementById('zero-pause-apres-debut');
+    const finInput = document.getElementById('zero-pause-apres-fin');
+    
+    if (modeDuree && modeDuree.checked) {
+        const duree = dureeInput ? dureeInput.value : '';
+        if (/^\d{2}:\d{2}$/.test(duree)) {
+            const [hh, mm] = duree.split(':').map(Number);
+            return hh * 60 + mm;
+        }
+        return 0;
+    }
+    
+    const debut = debutInput ? toMinutes(debutInput.value) : null;
+    const fin = finInput ? toMinutes(finInput.value) : null;
+    if (debut !== null && fin !== null && fin > debut) {
+        return fin - debut;
+    }
+    return 0;
+}
+
 const zeroArrivee = document.getElementById('zero-arrivee');
 const zeroDepart = document.getElementById('zero-depart');
 const zeroHeuresSup = document.getElementById('zero-heures-sup');
@@ -2291,6 +2347,9 @@ function calculerHeuresSupZero() {
             pauseMidiDureeMin = finMin - debutMin;
         }
     }
+    // Pause après-midi
+    const pauseApresDureeMin = getZeroPauseApresMinutes();
+    
     // Fonctions utilitaires
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return null;
@@ -2349,10 +2408,10 @@ function calculerHeuresSupZero() {
         if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
         dureeTravail -= pauseMidi;
     }
-    // Pause matin : seul l'excédent > pause offerte est déduit
-    let pauseMatin = pause1DureeMin;
-    if (pauseMatin > pauseOfferteVal) {
-        dureeTravail -= (pauseMatin - pauseOfferteVal);
+    // Total des pauses (matin + après-midi)
+    const totalPauses = pause1DureeMin + pauseApresDureeMin;
+    if (totalPauses > pauseOfferteVal) {
+        dureeTravail -= (totalPauses - pauseOfferteVal);
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
@@ -2502,10 +2561,12 @@ function calculerHeuresSupCalculette() {
         if (pauseMidi < pauseMidiMin) pauseMidi = pauseMidiMin;
         dureeTravail -= pauseMidi;
     }
-    // Pause matin : seul l'excédent > pause offerte est déduit
-    let pauseMatin = pause1DureeMin;
-    if (pauseMatin > pauseOfferteVal) {
-        dureeTravail -= (pauseMatin - pauseOfferteVal);
+    // Total des pauses (matin + pauses supplémentaires incluant après-midi)
+    // Note: pauseSup inclut déjà pause2 + pause après-midi via getPauseSupMinutes()
+    const pauseSup = getPauseSupMinutes();
+    const totalPauses = pause1DureeMin + pauseSup;
+    if (totalPauses > pauseOfferteVal) {
+        dureeTravail -= (totalPauses - pauseOfferteVal);
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
@@ -2519,6 +2580,8 @@ function calculerHeuresSupCalculette() {
     console.log('Pause midi saisie:', pauseMidiDureeMin, 'min');
     console.log('Pause midi appliquée:', calcRhtChecked ? '0 (mode RHT)' : pauseMidiDureeMin, 'min');
     console.log('Pause matin:', pause1DureeMin, 'min');
+    console.log('Pause sup (pause2 + après-midi):', pauseSup, 'min');
+    console.log('Total pauses (matin + sup):', totalPauses, 'min');
     console.log('Pause offerte:', pauseOfferteVal, 'min');
     console.log('Durée travail après pauses:', dureeTravail, 'min');
     console.log('Heures à faire (RHT:', calcRhtChecked, '):', heuresJourMin/60, 'h (', heuresJourMin, 'min)');
@@ -2532,7 +2595,7 @@ function calculerHeuresSupCalculette() {
     calcHeuresSup.style.color = heuresSup >= 0 ? '#1976d2' : '#d32f2f';
 }
 
-['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause1-debut','calc-pause1-fin'].forEach(id => {
+['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause1-debut','calc-pause1-fin','calc-pause-apres-debut','calc-pause-apres-fin','calc-pause-apres-duree'].forEach(id => {
     const el = document.getElementById(id);
     if (el) safeAddEventListener(id, 'input', calculerHeuresSupCalculette);
 });
@@ -2549,7 +2612,8 @@ const calcFields = [
     'calc-pause-debut', 'calc-pause-fin',
     'calc-pause1-debut', 'calc-pause1-fin',
     'calc-pause2-debut', 'calc-pause2-fin',
-    'calc-pause-apres-debut', 'calc-pause-apres-fin'
+    'calc-pause-apres-debut', 'calc-pause-apres-fin',
+    'calc-pause-apres-duree'
 ];
 calcFields.forEach(id => {
     const el = document.getElementById(id);
@@ -2571,7 +2635,8 @@ const zeroFields = [
     'zero-arrivee', 'zero-depart',
     'zero-pause-debut', 'zero-pause-fin',
     'zero-pause1-debut', 'zero-pause1-fin',
-    'zero-pause-apres-debut', 'zero-pause-apres-fin'
+    'zero-pause-apres-debut', 'zero-pause-apres-fin',
+    'zero-pause-apres-duree'
 ];
 zeroFields.forEach(id => {
     const el = document.getElementById(id);
@@ -2602,7 +2667,7 @@ updateCalculateur = function() {
     }
 };
 
-['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin','calc-pause-apres-debut','calc-pause-apres-fin'].forEach(id => {
+['calc-arrivee','calc-depart','calc-pause-debut','calc-pause-fin','calc-pause2-debut','calc-pause2-fin','calc-pause1-debut','calc-pause1-fin','calc-pause-apres-debut','calc-pause-apres-fin','calc-pause-apres-duree'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
         safeAddEventListener(id, 'blur', function() {
