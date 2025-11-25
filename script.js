@@ -4533,8 +4533,12 @@ function initialiserPeriodesRHT(phase) {
             });
         });
         
-        // Plages horaires
+        // Plages horaires - Appliquer le formatage automatique
         container.querySelectorAll('.input-period-arrivee-min, .input-period-arrivee-max, .input-period-depart-min, .input-period-depart-max').forEach(input => {
+            // Appliquer le formatage automatique HH:MM
+            formatHeureInput(input);
+            
+            // Sauvegarde au blur (après le formatage)
             input.addEventListener('blur', function() {
                 const periodeId = this.dataset.periodId;
                 const field = this.classList.contains('input-period-arrivee-min') ? 'plageArriveeMin' :
@@ -4545,6 +4549,12 @@ function initialiserPeriodesRHT(phase) {
                 modifierPeriodeRHT(phase, periodeId, { [field]: this.value });
                 actualiserAffichageRHT();
             });
+        });
+        
+        // Formatage pour le champ heures/jour HH:MM aussi
+        container.querySelectorAll('.input-period-heures-hhmm').forEach(input => {
+            // Appliquer le formatage automatique HH:MM
+            formatHeureInput(input);
         });
     }
 }
