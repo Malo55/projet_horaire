@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="style.css">
     <!-- SheetJS (xlsx) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
           <style>
         body {
           background-color: #e8e8e8;
@@ -69,7 +71,7 @@
     </div>
 
     <h1>Agenda</h1>
-    <div style="display: flex; justify-content: center; width: 100%; margin-bottom: 24px; position: relative; gap: 32px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; width: 100%; margin-bottom: 24px; position: relative; gap: 32px;">
       <div style="position: relative; display: inline-block;">
         <div id="calendrier"></div>
         <button id="btn-vacances" style="position: absolute; top: 0; right: 0; height: 40px;">Vacances</button>
@@ -87,6 +89,19 @@
         <h4 style="margin:16px 0 8px 0; color:#666; font-size:0.9em;">Variables mensuelles</h4>
         <div>Heures écrêtées : <span id="compteur-rht-perdues">0,00</span> h</div>
         <div>RHT supplémentaire : <span id="compteur-rht-supp">0,00</span> h</div>
+      </div>
+      <div id="graphique-heures-module">
+        <div class="graphique-heures-header" style="display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <h4 id="graphique-heures-titre" style="margin:0;">Heures travaillées</h4>
+            <div id="graphique-heures-onglets" style="display:flex; gap:6px;">
+              <button class="graphique-onglet active" data-mode="heures">Heures</button>
+              <button class="graphique-onglet" data-mode="arrivees">Arrivées</button>
+            </div>
+          </div>
+        </div>
+        <canvas id="graphique-heures-canvas"></canvas>
+        <div id="graphique-heures-legende">Objectif quotidien : 0,00 h</div>
       </div>
     </div>
     <div id="modules-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; justify-content: center; margin-bottom: 24px;">
@@ -403,6 +418,7 @@
                 <div style="display:flex; gap:8px; align-self:center;">
                   <button id="param-tab-general" style="padding:8px 12px; border:1px solid #1976d2; background:#1976d2; color:#fff; border-radius:6px; cursor:pointer;">Général</button>
                   <button id="param-tab-rht" style="padding:8px 12px; border:1px solid #1976d2; background:#fff; color:#1976d2; border-radius:6px; cursor:pointer;">RHT</button>
+                  <button id="param-tab-salaire" style="padding:8px 12px; border:1px solid #1976d2; background:#fff; color:#1976d2; border-radius:6px; cursor:pointer;">Salaire</button>
                 </div>
                 
                 <!-- Section Général (onglet) -->
@@ -524,6 +540,57 @@
                   
                   <!-- Message d'erreur de chevauchement -->
                   <div id="rht-overlap-message" style="display:none; padding:12px; border-radius:6px; margin-top:12px;"></div>
+                </div>
+
+                <!-- Section Salaire (onglet) -->
+                <div id="parametres-salaire-section" style="display:none; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px; max-width:500px; align-self:center; flex-direction:column; gap:16px;">
+                    <div style="background:#f8f9fa; padding:16px; border-radius:8px; border-left:4px solid #1976d2;">
+                        <h3 style="margin:0 0 8px 0; color:#1976d2;">Paramètres de salaire</h3>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <label for="param-salaire-nb-jours" style="min-width:190px; font-weight:bold;">Nombre de jours travaillés</label>
+                            <input type="number" id="param-salaire-nb-jours" min="0" max="400" step="1" style="width:120px; padding:6px 8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <span style="min-width:190px; font-weight:bold;">Heures à faire par jour</span>
+                            <span id="param-salaire-heures-jour" style="min-width:120px; text-align:right;">0,00</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between; margin-top:4px;">
+                            <label for="param-salaire-nb-mois" style="min-width:190px; font-weight:bold;">Nombre de mois</label>
+                            <input type="number" id="param-salaire-nb-mois" min="0" max="24" step="1" style="width:120px; padding:6px 8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <label for="param-salaire-mensuel-brut" style="min-width:190px; font-weight:bold;">Salaire mensuel (brut)</label>
+                            <input type="number" id="param-salaire-mensuel-brut" min="0" step="0.01" style="width:120px; padding:6px 8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <span style="min-width:190px; font-weight:bold;">Salaire annuel (brut)</span>
+                            <span id="param-salaire-annuel-brut" style="min-width:120px; text-align:right;">0,00</span>
+                        </div>
+                        <hr style="margin:8px 0;">
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <label for="param-salaire-lamal-mois" style="min-width:190px; font-weight:bold;">Participation Lamal (mois)</label>
+                            <input type="number" id="param-salaire-lamal-mois" min="0" step="0.01" style="width:120px; padding:6px 8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <span style="min-width:190px; font-weight:bold;">Participation Lamal (année)</span>
+                            <span id="param-salaire-lamal-annee" style="min-width:120px; text-align:right;">0,00</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between; margin-top:4px;">
+                            <span style="min-width:190px; font-weight:bold;">Salaire annuel (brut) TOTAL</span>
+                            <span id="param-salaire-annuel-total" style="min-width:120px; text-align:right;">0,00</span>
+                        </div>
+                        <hr style="margin:8px 0;">
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <span style="min-width:190px; font-weight:bold;">Heures annuelles</span>
+                            <span id="param-salaire-heures-annuelles" style="min-width:120px; text-align:right;">0,00</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                            <span style="min-width:190px; font-weight:bold;">Taux horaire RHT brut</span>
+                            <span id="param-salaire-taux-rht-brut" style="min-width:120px; text-align:right; font-weight:bold; color:#1976d2;">0,00</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">

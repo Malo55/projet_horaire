@@ -36,6 +36,21 @@ let joursTravail = JSON.parse(localStorage.getItem('joursTravail')) || {
 
 // Gestion des heures supplémentaires
 let heuresSupplementaires = parseFloat(localStorage.getItem('heuresSupplementaires')) || 0;
+let graphiqueHeuresChart = null;
+let graphiqueHeuresMode = 'heures';
+
+// --- Utilitaires format décimal <-> affichage français ---
+function toNumberFromInput(val) {
+    if (typeof val !== 'string') return Number(val) || 0;
+    const cleaned = val.replace(/\s/g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+}
+
+function formatDecimalFr(val) {
+    if (!Number.isFinite(val)) return '0,00';
+    return val.toFixed(2).replace('.', ',');
+}
 
 if (pauseOfferteInput) {
     pauseOfferteInput.value = pauseOfferte;
@@ -397,6 +412,401 @@ function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pa
     return (totalMinutes / 60).toFixed(2);
 }
 
+function getHeuresTravailleesPourGraph(dateStr) {
+    const jour = jours.find(j => j.date === dateStr);
+    if (!jour || !jour.arrivee || !jour.depart) return 0;
+
+    const isVac = typeof isJourVacances === 'function' ? isJourVacances(dateStr) : false;
+    const isRtt = typeof isJourRTT === 'function' ? isJourRTT(dateStr) : false;
+    if (isVac || isRtt) return 0;
+
+    const isRhtPhase2 = typeof isDateInRHT === 'function' ? isDateInRHT(dateStr) : false;
+    const isRhtPhase1 = typeof isDateInRHTPhase1 === 'function' ? isDateInRHTPhase1(dateStr) : false;
+    const isJourRhtCustom = typeof isJourRHT === 'function' ? isJourRHT(dateStr) : false;
+    const isRht = isJourRhtCustom || isRhtPhase1 || isRhtPhase2;
+
+    const pausesAvant = Array.isArray(jour.pausesAvant) ? jour.pausesAvant : [];
+    const pausesApres = Array.isArray(jour.pausesApres) ? jour.pausesApres : [];
+
+    try {
+        if (isRht) {
+            const pauseOffEff = typeof getPauseOfferteEffective === 'function' ? getPauseOfferteEffective(dateStr) : pauseOfferte;
+            return parseFloat(calculerHeuresAvecPause(
+                jour.arrivee,
+                jour.pauseDejDebut,
+                jour.pauseDejFin,
+                jour.depart,
+                pausesAvant,
+                pausesApres,
+                pauseOffEff,
+                true
+            )) || 0;
+        }
+        return parseFloat(calculerHeures(
+            jour.arrivee,
+            jour.pauseDejDebut,
+            jour.pauseDejFin,
+            jour.depart,
+            pausesAvant,
+            pausesApres
+        )) || 0;
+    } catch (error) {
+        console.warn('Erreur lors du calcul du graphique pour', dateStr, error);
+        return 0;
+    }
+}
+
+function getHeuresCibleQuotidiennes() {
+    const valeur = parseFloat(heuresJour);
+    return Number.isFinite(valeur) ? valeur : 0;
+}
+
+function preparerDonneesGraphique(annee) {
+    const labels = [];
+    const data = [];
+    const cible = [];
+    const heuresCible = getHeuresCibleQuotidiennes();
+
+    // Ne garder que les jours de l'année demandée, triés par date croissante
+    const anneeStr = String(annee);
+    const joursAnnee = (jours || [])
+        .filter(j => j.date && j.date.startsWith(anneeStr + '-'))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    joursAnnee.forEach(jour => {
+        const [y, m, d] = jour.date.split('-');
+        const label = `${d}/${m}`;
+        labels.push(label);
+        data.push(getHeuresTravailleesPourGraph(jour.date));
+        cible.push(heuresCible);
+    });
+
+    return { labels, data, cible, heuresCible };
+}
+
+function heureHHMMToDecimal(hhmm) {
+    if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
+    const [hh, mm] = hhmm.split(':').map(Number);
+    return hh + (mm / 60);
+}
+
+function decimalHourToHHMM(decimal) {
+    if (!Number.isFinite(decimal)) return '--:--';
+    const totalMinutes = Math.round(decimal * 60);
+    const hh = String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0');
+    const mm = String(Math.abs(totalMinutes % 60)).padStart(2, '0');
+    return `${hh}:${mm}`;
+}
+
+function preparerDonneesArrivees(annee) {
+    const labels = [];
+    const data = [];
+    let total = 0;
+    let count = 0;
+
+    const anneeStr = String(annee);
+    const joursAnnee = (jours || [])
+        .filter(j => j.date && j.date.startsWith(anneeStr + '-'))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    joursAnnee.forEach(jourData => {
+        const dateStr = jourData.date;
+        const [y, m, d] = dateStr.split('-');
+        const label = `${d}/${m}`;
+
+        const estTravaille = isJourTravaille(dateStr);
+        const estJourSpecial = isJourVacances(dateStr) || isJourRTT(dateStr) || isJourFerie(dateStr);
+
+        if (jourData.arrivee && estTravaille && !estJourSpecial) {
+            const decimal = heureHHMMToDecimal(jourData.arrivee);
+            labels.push(label);
+            data.push(decimal);
+            if (decimal !== null) {
+                total += decimal;
+                count++;
+            }
+        }
+        // Si pas d'arrivée valide, on n'ajoute rien pour cette date afin de n'afficher
+        // que les jours où il y a réellement une donnée d'arrivée.
+    });
+
+    return {
+        labels,
+        data,
+        moyenne: count > 0 ? total / count : null
+    };
+}
+
+function mettreAJourLegendeGraphique(texte) {
+    const legendeDiv = document.getElementById('graphique-heures-legende');
+    if (legendeDiv) {
+        legendeDiv.textContent = texte;
+    }
+}
+
+function mettreAJourTitreGraphique(mode) {
+    const titre = document.getElementById('graphique-heures-titre');
+    if (!titre) return;
+    titre.textContent = mode === 'arrivees' ? "Heures d'arrivée" : 'Heures travaillées';
+}
+
+function activerOngletGraphique(mode) {
+    document.querySelectorAll('#graphique-heures-onglets .graphique-onglet').forEach(btn => {
+        const btnMode = btn.getAttribute('data-mode');
+        btn.classList.toggle('active', btnMode === mode);
+    });
+}
+
+function construireConfigGraphique(mode, annee) {
+    if (mode === 'arrivees') {
+        const { labels, data, moyenne } = preparerDonneesArrivees(annee);
+        return {
+            labels,
+            datasets: [
+                {
+                    label: "Heure d'arrivée",
+                    data,
+                    borderColor: '#7b1fa2',
+                    backgroundColor: 'rgba(123,31,162,0.12)',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    fill: true,
+                    spanGaps: false,
+                    pointRadius: 2
+                }
+            ],
+            legend: `Arrivée moyenne : ${moyenne !== null ? decimalHourToHHMM(moyenne) : '--:--'}`,
+            chartTitle: `Arrivées - ${annee}`,
+            yScale: {
+                beginAtZero: false,
+                suggestedMin: 5.5,
+                suggestedMax: 11,
+                ticks: {
+                    callback(value) {
+                        return decimalHourToHHMM(value);
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'Heure'
+                }
+            },
+            tooltipFormatter(value) {
+                return decimalHourToHHMM(value);
+            }
+        };
+    }
+
+    const { labels, data, cible, heuresCible } = preparerDonneesGraphique(annee);
+    return {
+        labels,
+        datasets: [
+            {
+                label: 'Heures travaillées',
+                data,
+                borderColor: '#1976d2',
+                backgroundColor: 'rgba(25,118,210,0.15)',
+                borderWidth: 2,
+                tension: 0.25,
+                fill: true,
+                pointRadius: 0
+            },
+            {
+                label: 'Objectif quotidien',
+                data: cible,
+                borderColor: '#ff7043',
+                borderWidth: 2,
+                borderDash: [6, 4],
+                fill: false,
+                pointRadius: 0
+            }
+        ],
+        legend: `Objectif quotidien : ${heuresCible.toFixed(2).replace('.', ',')} h`,
+        chartTitle: `Année ${annee}`,
+        yScale: {
+            beginAtZero: true,
+            title: {
+                display: true,
+                text: 'Heures'
+            }
+        },
+        tooltipFormatter(value) {
+            return `${Number(value || 0).toFixed(2)} h`;
+        }
+    };
+}
+
+function initialiserGraphiqueHeures() {
+    const canvas = document.getElementById('graphique-heures-canvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const ctx = canvas.getContext('2d');
+    canvas.height = 260;
+    canvas.style.height = '260px';
+    canvas.style.maxHeight = '260px';
+    const config = construireConfigGraphique(graphiqueHeuresMode, currentYear);
+
+    graphiqueHeuresChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: config.labels,
+            datasets: config.datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                title: {
+                    display: true,
+                    text: config.chartTitle
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const label = context.dataset.label || '';
+                            const value = context.parsed.y;
+                            return `${label}: ${config.tooltipFormatter(value)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 0,
+                        autoSkip: true,
+                        callback: function(value, index) {
+                            return index % 7 === 0 ? this.getLabelForValue(value) : '';
+                        }
+                    }
+                },
+                y: config.yScale
+            }
+        }
+    });
+
+    mettreAJourLegendeGraphique(config.legend);
+}
+
+function mettreAJourGraphiqueHeures() {
+    if (typeof Chart === 'undefined') return;
+    const canvas = document.getElementById('graphique-heures-canvas');
+    if (!canvas) return;
+
+    if (!graphiqueHeuresChart) {
+        initialiserGraphiqueHeures();
+        return;
+    }
+
+    const config = construireConfigGraphique(graphiqueHeuresMode, currentYear);
+    graphiqueHeuresChart.data.labels = config.labels;
+    graphiqueHeuresChart.data.datasets = config.datasets;
+    if (graphiqueHeuresChart.options?.plugins?.title) {
+        graphiqueHeuresChart.options.plugins.title.text = config.chartTitle;
+    }
+    if (!graphiqueHeuresChart.options.plugins.tooltip) {
+        graphiqueHeuresChart.options.plugins.tooltip = {};
+    }
+    graphiqueHeuresChart.options.plugins.tooltip.callbacks = {
+        label(context) {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y;
+            return `${label}: ${config.tooltipFormatter(value)}`;
+        }
+    };
+    graphiqueHeuresChart.options.scales.y = config.yScale;
+    graphiqueHeuresChart.update('none');
+    mettreAJourLegendeGraphique(config.legend);
+}
+
+(function initialiserOngletsGraphique() {
+    const onglets = document.querySelectorAll('#graphique-heures-onglets .graphique-onglet');
+    if (!onglets.length) return;
+    onglets.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-mode');
+            if (mode && mode !== graphiqueHeuresMode) {
+                graphiqueHeuresMode = mode;
+                activerOngletGraphique(mode);
+                mettreAJourTitreGraphique(mode);
+                mettreAJourGraphiqueHeures();
+            }
+        });
+    });
+    activerOngletGraphique(graphiqueHeuresMode);
+    mettreAJourTitreGraphique(graphiqueHeuresMode);
+})();
+
+// --- Paramètres : onglet Salaire ---
+function initialiserParametresSalaire() {
+    const nbJoursInput = document.getElementById('param-salaire-nb-jours');
+    const nbMoisInput = document.getElementById('param-salaire-nb-mois');
+    const salaireMensuelInput = document.getElementById('param-salaire-mensuel-brut');
+    const lamalMoisInput = document.getElementById('param-salaire-lamal-mois');
+
+    const heuresJourSpan = document.getElementById('param-salaire-heures-jour');
+    const salaireAnnuelSpan = document.getElementById('param-salaire-annuel-brut');
+    const lamalAnneeSpan = document.getElementById('param-salaire-lamal-annee');
+    const salaireTotalSpan = document.getElementById('param-salaire-annuel-total');
+    const heuresAnnuellesSpan = document.getElementById('param-salaire-heures-annuelles');
+    const tauxRhtSpan = document.getElementById('param-salaire-taux-rht-brut');
+
+    if (!nbJoursInput || !nbMoisInput || !salaireMensuelInput || !lamalMoisInput) return;
+
+    // Charger les valeurs depuis le localStorage
+    nbJoursInput.value = localStorage.getItem('salaireNbJours') || '';
+    nbMoisInput.value = localStorage.getItem('salaireNbMois') || '';
+    salaireMensuelInput.value = localStorage.getItem('salaireMensuelBrut') || '';
+    lamalMoisInput.value = localStorage.getItem('salaireLamalMois') || '';
+
+    function sauver() {
+        localStorage.setItem('salaireNbJours', nbJoursInput.value || '');
+        localStorage.setItem('salaireNbMois', nbMoisInput.value || '');
+        localStorage.setItem('salaireMensuelBrut', salaireMensuelInput.value || '');
+        localStorage.setItem('salaireLamalMois', lamalMoisInput.value || '');
+    }
+
+    function recalculer() {
+        // Heures/jour depuis la config globale
+        const hJour = Number.isFinite(heuresJour) ? heuresJour : parseFloat(localStorage.getItem('heuresJour')) || 0;
+        if (heuresJourSpan) heuresJourSpan.textContent = formatDecimalFr(hJour);
+
+        const nbJours = toNumberFromInput(nbJoursInput.value);
+        const nbMois = toNumberFromInput(nbMoisInput.value);
+        const salaireMensuel = toNumberFromInput(salaireMensuelInput.value);
+        const lamalMois = toNumberFromInput(lamalMoisInput.value);
+
+        const salaireAnnuel = salaireMensuel * nbMois;
+        const lamalAnnee = lamalMois * 12;
+        const salaireTotal = salaireAnnuel + lamalAnnee;
+        const heuresAnnuelles = nbJours * hJour;
+        const tauxRht = heuresAnnuelles > 0 ? (salaireTotal / heuresAnnuelles) : 0;
+
+        if (salaireAnnuelSpan) salaireAnnuelSpan.textContent = formatDecimalFr(salaireAnnuel);
+        if (lamalAnneeSpan) lamalAnneeSpan.textContent = formatDecimalFr(lamalAnnee);
+        if (salaireTotalSpan) salaireTotalSpan.textContent = formatDecimalFr(salaireTotal);
+        if (heuresAnnuellesSpan) heuresAnnuellesSpan.textContent = formatDecimalFr(heuresAnnuelles);
+        if (tauxRhtSpan) tauxRhtSpan.textContent = formatDecimalFr(tauxRht);
+    }
+
+    ['input', 'change'].forEach(evt => {
+        nbJoursInput.addEventListener(evt, () => { sauver(); recalculer(); });
+        nbMoisInput.addEventListener(evt, () => { sauver(); recalculer(); });
+        salaireMensuelInput.addEventListener(evt, () => { sauver(); recalculer(); });
+        lamalMoisInput.addEventListener(evt, () => { sauver(); recalculer(); });
+    });
+
+    // Premier calcul à l'ouverture
+    recalculer();
+}
+
 // Fonction pour calculer l'écart
 function calculerEcart(heuresTravaillees, heuresJour) {
     const ecart = heuresTravaillees - heuresJour;
@@ -615,7 +1025,8 @@ function afficherJours() {
     });
     // majCalendrier(); // SUPPRIMÉ pour éviter la boucle infinie
     
-    // Mise à jour des compteurs d'absences après affichage
+    // Mise à jour des compteurs et du graphique après affichage
+    mettreAJourGraphiqueHeures();
     updateCompteursAbsences();
 }
 
@@ -4902,28 +5313,49 @@ if (document.readyState === 'loading') {
     
     const tabGeneral = document.getElementById('param-tab-general');
     const tabRHT = document.getElementById('param-tab-rht');
+    const tabSalaire = document.getElementById('param-tab-salaire');
     const sectionRHT = document.getElementById('parametres-rht-section');
     const sectionGeneral = document.getElementById('parametres-general-section');
+    const sectionSalaire = document.getElementById('parametres-salaire-section');
+
+    function resetTabs() {
+        [tabGeneral, tabRHT, tabSalaire].forEach(btn => {
+            if (!btn) return;
+            btn.style.background = '#fff';
+            btn.style.color = '#1976d2';
+        });
+        if (sectionGeneral) sectionGeneral.style.display = 'none';
+        if (sectionRHT) sectionRHT.style.display = 'none';
+        if (sectionSalaire) sectionSalaire.style.display = 'none';
+    }
 
     function showGeneral() {
+        resetTabs();
         if (sectionGeneral) sectionGeneral.style.display = 'flex';
-        if (sectionRHT) sectionRHT.style.display = 'none';
         if (tabGeneral) { tabGeneral.style.background = '#1976d2'; tabGeneral.style.color = '#fff'; }
-        if (tabRHT) { tabRHT.style.background = '#fff'; tabRHT.style.color = '#1976d2'; }
     }
     function showRHT() {
-        if (sectionGeneral) sectionGeneral.style.display = 'none';
+        resetTabs();
         if (sectionRHT) sectionRHT.style.display = 'flex';
         if (tabRHT) { tabRHT.style.background = '#1976d2'; tabRHT.style.color = '#fff'; }
-        if (tabGeneral) { tabGeneral.style.background = '#fff'; tabGeneral.style.color = '#1976d2'; }
         
         // Charger l'affichage des périodes quand on ouvre l'onglet RHT
         afficherPeriodesRHT('phase1');
         afficherPeriodesRHT('phase2');
         afficherMessageChevauchement();
     }
+    function showSalaire() {
+        resetTabs();
+        if (sectionSalaire) sectionSalaire.style.display = 'flex';
+        if (tabSalaire) { tabSalaire.style.background = '#1976d2'; tabSalaire.style.color = '#fff'; }
+        if (typeof initialiserParametresSalaire === 'function') {
+            initialiserParametresSalaire();
+        }
+    }
+
     if (tabGeneral) tabGeneral.addEventListener('click', showGeneral);
     if (tabRHT) tabRHT.addEventListener('click', showRHT);
+    if (tabSalaire) tabSalaire.addEventListener('click', showSalaire);
     
     // Initialiser la gestion des périodes
     initialiserGestionPeriodesRHT();
