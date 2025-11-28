@@ -835,6 +835,21 @@ function initialiserGraphiqueHeures() {
                             }
                             return '';
                         }
+                    },
+                    grid: {
+                        display: true,
+                        color: function(context) {
+                            // Afficher la grille uniquement là où il y a un label de mois (mode année uniquement)
+                            if (graphiquePeriodeMode === 'annee' && context.tick && config.tickLabels) {
+                                const index = context.tick.value;
+                                if (config.tickLabels[index] && config.tickLabels[index] !== '') {
+                                    return 'rgba(0, 0, 0, 0.1)';
+                                }
+                                return 'transparent';
+                            }
+                            // En mode mois, afficher toutes les lignes normalement
+                            return 'rgba(0, 0, 0, 0.1)';
+                        }
                     }
                 },
                 y: config.yScale
@@ -873,6 +888,20 @@ function mettreAJourGraphiqueHeures() {
                 return config.tickLabels[index];
             }
             return '';
+        };
+    }
+    // Mettre à jour les gridlines pour n'afficher que sur les mois (mode année uniquement)
+    if (graphiqueHeuresChart.options.scales.x && graphiqueHeuresChart.options.scales.x.grid) {
+        graphiqueHeuresChart.options.scales.x.grid.color = function(context) {
+            if (graphiquePeriodeMode === 'annee' && context.tick && config.tickLabels) {
+                const index = context.tick.value;
+                if (config.tickLabels[index] && config.tickLabels[index] !== '') {
+                    return 'rgba(0, 0, 0, 0.1)';
+                }
+                return 'transparent';
+            }
+            // En mode mois, afficher toutes les lignes normalement
+            return 'rgba(0, 0, 0, 0.1)';
         };
     }
     graphiqueHeuresChart.options.scales.y = config.yScale;
