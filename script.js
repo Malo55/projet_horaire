@@ -1107,6 +1107,7 @@ function initialiserParametresSalaire() {
     const simulationImpotSpan = document.getElementById('simulation-impot-amount');
     const simulationTotalDeductionsSpan = document.getElementById('simulation-total-deductions');
     const simulationTotalNetSpan = document.getElementById('simulation-total-net');
+    const simulationDeltaSpan = document.getElementById('simulation-delta');
 
     const heuresJourSpan = document.getElementById('param-salaire-heures-jour');
     const salaireAnnuelSpan = document.getElementById('param-salaire-annuel-brut');
@@ -1185,6 +1186,18 @@ function initialiserParametresSalaire() {
         const totalDeductions = avsAmount + laaAmount + chomageAmount + apgAmount + lppMontant + impotAmount;
         const totalNet = salaireAvecRht - totalDeductions;
 
+        // Calcul du total net sans RHT (nombre de RHT = 0) pour le delta
+        const totalRhtSansRHT = 0;
+        const salaireAvecRhtSansRHT = salaireCorrige - totalRhtSansRHT;
+        const tauxDepuisTableSansRHT = trouverTauxImpotPourSalaire(salaireAvecRhtSansRHT);
+        const impotPercentSansRHT = tauxDepuisTableSansRHT !== null ? tauxDepuisTableSansRHT : 13.37;
+        const impotAmountSansRHT = salaireAvecRhtSansRHT * (impotPercentSansRHT / 100);
+        const totalDeductionsSansRHT = avsAmount + laaAmount + chomageAmount + apgAmount + lppMontant + impotAmountSansRHT;
+        const totalNetSansRHT = salaireAvecRhtSansRHT - totalDeductionsSansRHT;
+        
+        // Delta = (total net avec rht) - (total net avec "nombre de rht" = 0)
+        const delta = totalNet - totalNetSansRHT;
+
         if (simulationAvsSpan) simulationAvsSpan.textContent = formatDecimalFr(avsAmount);
         if (simulationLaaSpan) simulationLaaSpan.textContent = formatDecimalFr(laaAmount);
         if (simulationChomageSpan) simulationChomageSpan.textContent = formatDecimalFr(chomageAmount);
@@ -1193,6 +1206,7 @@ function initialiserParametresSalaire() {
         if (simulationImpotSpan) simulationImpotSpan.textContent = formatDecimalFr(impotAmount);
         if (simulationTotalDeductionsSpan) simulationTotalDeductionsSpan.textContent = formatDecimalFr(totalDeductions);
         if (simulationTotalNetSpan) simulationTotalNetSpan.textContent = formatDecimalFr(totalNet);
+        if (simulationDeltaSpan) simulationDeltaSpan.textContent = formatDecimalFr(delta);
     }
 
     function initialiserSimulation() {
@@ -5553,6 +5567,13 @@ function actualiserAffichageRHT() {
     // Mettre à jour l'affichage des modules RHT
     if (typeof initialiserAffichageModulesRHT === 'function') {
         initialiserAffichageModulesRHT();
+    }
+    
+    // Si le modal est ouvert, rafraîchir l'affichage des champs selon le mode RHT
+    if (modalBg && modalBg.style.display === 'flex' && selectedDate) {
+        if (typeof gererAffichageChampsRHT === 'function') {
+            gererAffichageChampsRHT(selectedDate);
+        }
     }
 }
 
