@@ -87,6 +87,7 @@
         <div>RHT supplémentaire (année) : <span id="compteur-rht-supp-annee">0,00</span> h</div>
         
         <h4 style="margin:16px 0 8px 0; color:#666; font-size:0.9em;">Variables mensuelles</h4>
+        <div>Heures RHT effectuées : <span id="compteur-rht-effectuees">0,00</span> h</div>
         <div>Heures écrêtées : <span id="compteur-rht-perdues">0,00</span> h</div>
         <div>RHT supplémentaire : <span id="compteur-rht-supp">0,00</span> h</div>
       </div>
@@ -419,10 +420,11 @@
             <div style="display: flex; flex-direction: column; gap: 20px;">
                 
                 <!-- Barre d'onglets -->
-                <div style="display:flex; gap:8px; align-self:center;">
+                <div style="display:flex; gap:8px; align-self:center; flex-wrap:wrap; justify-content:center;">
                   <button id="param-tab-general" style="padding:8px 12px; border:1px solid #1976d2; background:#1976d2; color:#fff; border-radius:6px; cursor:pointer;">Général</button>
                   <button id="param-tab-rht" style="padding:8px 12px; border:1px solid #1976d2; background:#fff; color:#1976d2; border-radius:6px; cursor:pointer;">RHT</button>
                   <button id="param-tab-salaire" style="padding:8px 12px; border:1px solid #1976d2; background:#fff; color:#1976d2; border-radius:6px; cursor:pointer;">Salaire</button>
+                  <button id="param-tab-impot" style="padding:8px 12px; border:1px solid #1976d2; background:#fff; color:#1976d2; border-radius:6px; cursor:pointer;">Impôt</button>
                 </div>
                 
                 <!-- Section Général (onglet) -->
@@ -547,7 +549,9 @@
                 </div>
 
                 <!-- Section Salaire (onglet) -->
-                <div id="parametres-salaire-section" style="display:none; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px; max-width:500px; align-self:center; flex-direction:column; gap:16px;">
+                <div id="parametres-salaire-section" style="display:none; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px; max-width:920px; align-self:center; flex-direction:column; gap:16px;">
+                    <div class="salaire-panels" style="display:flex; gap:18px; justify-content:center; width:100%; align-items:stretch; flex-wrap:wrap;">
+                        <div class="parametres-salaire-card" style="flex:1 1 420px; min-width:320px; max-width:520px; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:16px; display:flex; flex-direction:column; gap:12px;">
                     <div style="background:#f8f9fa; padding:16px; border-radius:8px; border-left:4px solid #1976d2;">
                         <h3 style="margin:0 0 8px 0; color:#1976d2;">Paramètres de salaire</h3>
                     </div>
@@ -595,8 +599,124 @@
                             <span id="param-salaire-taux-rht-brut" style="min-width:120px; text-align:right; font-weight:bold; color:#1976d2;">0,00</span>
                         </div>
                     </div>
+                        </div>
+                        <div id="simulation-paye-module" style="flex:1 1 420px; min-width:320px; max-width:520px; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                            <div style="background:#f1f8e9; padding:16px; border-radius:8px; border-left:4px solid #388e3c;">
+                                <h3 style="margin:0; color:#2e7d32;">Simulation paye</h3>
+                                <p style="margin:6px 0 0; color:#4a4a4a; font-size:13px;">Calculez l'impact RHT et les retenues sociales.</p>
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:10px;">
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <span style="font-weight:bold; min-width:200px;">Salaire mensuel (brut)</span>
+                                    <span id="simulation-salaire-mensuel" style="font-weight:bold;">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <span style="min-width:200px; font-weight:bold;">Participation Lamal (mois)</span>
+                                    <span id="simulation-lamal-mensuel">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <span style="min-width:200px; font-weight:bold;">Salaire corrigé</span>
+                                    <span id="simulation-salaire-corrige" style="font-weight:bold; color:#2e7d32;">0,00</span>
+                                </div>
+                                <div style="display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap;">
+                                    <label style="display:flex; flex-direction:column; gap:4px; flex:1 1 150px;">
+                                        <span style="font-weight:bold;">% de RHT</span>
+                                        <input type="number" id="simulation-rht-percent" min="0" max="100" step="0.1" style="padding:6px 8px; border:1px solid #ccc; border-radius:4px;">
+                                    </label>
+                                    <label style="display:flex; flex-direction:column; gap:4px; flex:1 1 150px;">
+                                        <span style="font-weight:bold;">Nombre de RHT</span>
+                                        <input type="number" id="simulation-rht-nombre" min="0" step="1" style="padding:6px 8px; border:1px solid #ccc; border-radius:4px; width:160px;">
+                                    </label>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <span style="min-width:200px; font-weight:bold;">Taux horaire RHT</span>
+                                    <span id="simulation-taux-rht">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <span style="min-width:200px; font-weight:bold;">Total déduction RHT</span>
+                                    <span id="simulation-total-rht" style="color:#c62828;">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <span style="min-width:200px; font-weight:bold;">Salaire avec RHT</span>
+                                    <span id="simulation-salaire-avec-rht" style="font-weight:bold;">0,00</span>
+                                </div>
+                            </div>
+                            <hr style="margin:4px 0;">
+                            <div style="display:flex; flex-direction:column; gap:8px;">
+                                <h4 style="margin:0; color:#2e7d32;">Déductions sociales</h4>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <span>AVS (%)</span>
+                                        <input type="number" id="simulation-avs-percent" min="0" max="100" step="0.01" value="5.30" style="width:90px; padding:4px 6px; border:1px solid #ccc; border-radius:4px;">
+                                    </label>
+                                    <span id="simulation-avs-amount">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <span>LAA (%)</span>
+                                        <input type="number" id="simulation-laa-percent" min="0" max="100" step="0.01" style="width:90px; padding:4px 6px; border:1px solid #ccc; border-radius:4px;">
+                                    </label>
+                                    <span id="simulation-laa-amount">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <span>Ass. chômage (%)</span>
+                                        <input type="number" id="simulation-chomage-percent" min="0" max="100" step="0.01" style="width:90px; padding:4px 6px; border:1px solid #ccc; border-radius:4px;">
+                                    </label>
+                                    <span id="simulation-chomage-amount">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <span>Ass. perte gain (%)</span>
+                                        <input type="number" id="simulation-apg-percent" min="0" max="100" step="0.01" style="width:90px; padding:4px 6px; border:1px solid #ccc; border-radius:4px;">
+                                    </label>
+                                    <span id="simulation-apg-amount">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <span>LPP (CHF)</span>
+                                        <input type="number" id="simulation-lpp-montant" min="0" step="0.01" style="width:110px; padding:4px 6px; border:1px solid #ccc; border-radius:4px;">
+                                    </label>
+                                    <span id="simulation-lpp-amount">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+                                    <label style="display:flex; align-items:center; gap:6px;">
+                                        <span>Impôts à la source (%)</span>
+                                        <input type="number" id="simulation-impot-percent" min="0" max="100" step="0.01" style="width:90px; padding:4px 6px; border:1px solid #ccc; border-radius:4px;">
+                                    </label>
+                                    <span id="simulation-impot-amount">0,00</span>
+                                </div>
+                                <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid #eee; padding-top:6px;">
+                                    <span style="font-weight:bold;">Total retenues hors RHT</span>
+                                    <span id="simulation-total-deductions" style="font-weight:bold; color:#c62828;">0,00</span>
+                                </div>
+                            </div>
+                            <hr style="margin:4px 0;">
+                            <div style="display:flex; align-items:center; justify-content:space-between;">
+                                <span style="font-weight:bold; font-size:1.1em;">TOTAL NET</span>
+                                <span id="simulation-total-net" style="font-weight:bold; color:#2e7d32; font-size:1.1em;">0,00</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
+                <div id="parametres-impot-section" style="display:none; background:#fff; border-radius:8px; box-shadow:0 2px 8px #0001; padding:18px; max-width:720px; align-self:center; flex-direction:column; gap:16px;">
+                    <div style="background:#f8f9fa; padding:16px; border-radius:8px; border-left:4px solid #1976d2;">
+                        <h3 style="margin:0 0 8px 0; color:#1976d2;">Table d'impôt à la source</h3>
+                        <p style="margin:0; color:#555; font-size:0.95em;">Importez un fichier Excel contenant trois colonnes : « Salaire min », « Salaire max » et « Impôt à la source (%) ». Ces plages seront utilisées pour renseigner automatiquement le taux d'impôt dans la simulation de salaire.</p>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <input type="file" id="impot-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button id="impot-import-btn" style="padding:8px 12px; border:1px solid #1976d2; background:#1976d2; color:#fff; border-radius:6px; cursor:pointer;">Importer un fichier Excel</button>
+                            <button id="impot-reset-btn" style="padding:8px 12px; border:1px solid #d32f2f; background:#fff; color:#d32f2f; border-radius:6px; cursor:pointer;">Réinitialiser le tableau</button>
+                        </div>
+                        <div id="impot-import-status" style="font-size:0.95em; color:#555;"></div>
+                    </div>
+                    <div id="impot-table-container" style="border:1px solid #e0e0e0; border-radius:8px; padding:12px; max-height:320px; overflow:auto;">
+                        <p style="margin:0; color:#777;">Aucune donnée importée pour le moment.</p>
+                    </div>
+                </div>
                 <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
                     <button id="parametres-annuler" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">
                         Fermer

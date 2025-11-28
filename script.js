@@ -40,6 +40,21 @@ let graphiqueHeuresChart = null;
 let graphiqueHeuresMode = 'heures';
 let graphiquePeriodeMode = 'annee';
 
+const IMPOT_TABLE_KEY = 'impotTableData';
+let tableauImpots = [];
+try {
+    const storedImpots = localStorage.getItem(IMPOT_TABLE_KEY);
+    if (storedImpots) {
+        const parsed = JSON.parse(storedImpots);
+        if (Array.isArray(parsed)) {
+            tableauImpots = parsed;
+        }
+    }
+} catch (err) {
+    console.warn('Impossible de lire le tableau d\'impôt depuis le stockage local', err);
+    tableauImpots = [];
+}
+
 const nomsMoisCourts = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 const nomsMoisLongs = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -54,6 +69,127 @@ function toNumberFromInput(val) {
 function formatDecimalFr(val) {
     if (!Number.isFinite(val)) return '0,00';
     return val.toFixed(2).replace('.', ',');
+}
+
+function getImpotTable() {
+    return Array.isArray(tableauImpots) ? tableauImpots : [];
+}
+
+function saveImpotTable(data) {
+    tableauImpots = Array.isArray(data) ? data : [];
+    try {
+        localStorage.setItem(IMPOT_TABLE_KEY, JSON.stringify(tableauImpots));
+    } catch (err) {
+        console.warn('Impossible de sauvegarder le tableau d\'impôt', err);
+    }
+}
+
+function afficherStatutImportImpots(message, type = 'info') {
+    const status = document.getElementById('impot-import-status');
+    if (!status) return;
+    const colors = {
+        info: '#555',
+        success: '#2e7d32',
+        error: '#c62828'
+    };
+    status.style.color = colors[type] || colors.info;
+    status.textContent = message;
+}
+
+function renderTableImpots() {
+    const container = document.getElementById('impot-table-container');
+    if (!container) return;
+    const data = getImpotTable();
+    if (!data.length) {
+        container.innerHTML = '<p style="margin:0; color:#777;">Aucune donnée importée pour le moment.</p>';
+        return;
+    }
+    let rows = data.map(range => `
+        <tr>
+            <td>${formatDecimalFr(range.min)}</td>
+            <td>${formatDecimalFr(range.max)}</td>
+            <td>${formatDecimalFr(range.taux)} %</td>
+        </tr>`).join('');
+    container.innerHTML = `
+        <div style="overflow:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.95em;">
+                <thead>
+                    <tr style="background:#f1f1f1;">
+                        <th style="padding:8px; border:1px solid #e0e0e0;">Salaire min</th>
+                        <th style="padding:8px; border:1px solid #e0e0e0;">Salaire max</th>
+                        <th style="padding:8px; border:1px solid #e0e0e0;">Impôt à la source (%)</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+function parseImpotRows(rows) {
+    const parsed = [];
+    const isHeaderRow = (row = []) => {
+        const joined = row.map(cell => (cell || '').toString().toLowerCase()).join(' ');
+        return joined.includes('min') || joined.includes('max') || joined.includes('impôt') || joined.includes('impot');
+    };
+    rows.forEach((row, idx) => {
+        if (!row || !row.length) return;
+        if (idx === 0 && isHeaderRow(row)) return;
+        const minVal = toNumberFromInput(String(row[0] ?? '').replace(',', '.'));
+        const maxVal = toNumberFromInput(String(row[1] ?? '').replace(',', '.'));
+        const tauxVal = toNumberFromInput(String(row[2] ?? '').replace(',', '.'));
+        if (Number.isFinite(minVal) && Number.isFinite(maxVal) && Number.isFinite(tauxVal) && maxVal >= minVal) {
+            parsed.push({ min: minVal, max: maxVal, taux: tauxVal });
+        }
+    });
+    return parsed.sort((a, b) => a.min - b.min);
+}
+
+function importerTableImpotsDepuisFichier(file) {
+    if (typeof XLSX === 'undefined') {
+        afficherStatutImportImpots('Librairie XLSX non disponible.', 'error');
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        try {
+            const data = new Uint8Array(ev.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            const parsed = parseImpotRows(rows);
+            if (!parsed.length) {
+                afficherStatutImportImpots('Aucune donnée valide trouvée dans le fichier.', 'error');
+                return;
+            }
+            saveImpotTable(parsed);
+            renderTableImpots();
+            afficherStatutImportImpots(`${parsed.length} lignes importées avec succès.`, 'success');
+            if (document.getElementById('parametres-salaire-section')?.style.display !== 'none') {
+                if (typeof initialiserParametresSalaire === 'function') {
+                    initialiserParametresSalaire();
+                }
+            }
+        } catch (error) {
+            console.error('Erreur import impôt', error);
+            afficherStatutImportImpots('Erreur lors de la lecture du fichier.', 'error');
+        }
+    };
+    reader.onerror = function() {
+        afficherStatutImportImpots('Impossible de lire le fichier.', 'error');
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function trouverTauxImpotPourSalaire(salaire) {
+    if (!Number.isFinite(salaire)) return null;
+    const table = getImpotTable();
+    for (const range of table) {
+        if (salaire >= range.min && salaire <= range.max) {
+            return range.taux;
+        }
+    }
+    return null;
 }
 
 if (pauseOfferteInput) {
@@ -949,12 +1085,36 @@ function initialiserParametresSalaire() {
     const salaireMensuelInput = document.getElementById('param-salaire-mensuel-brut');
     const lamalMoisInput = document.getElementById('param-salaire-lamal-mois');
 
+    const simulationSalaireSpan = document.getElementById('simulation-salaire-mensuel');
+    const simulationLamalSpan = document.getElementById('simulation-lamal-mensuel');
+    const simulationSalaireCorrigeSpan = document.getElementById('simulation-salaire-corrige');
+    const simulationRhtPercentInput = document.getElementById('simulation-rht-percent');
+    const simulationRhtNombreInput = document.getElementById('simulation-rht-nombre');
+    const simulationTauxRhtSpan = document.getElementById('simulation-taux-rht');
+    const simulationTotalRhtSpan = document.getElementById('simulation-total-rht');
+    const simulationSalaireAvecRhtSpan = document.getElementById('simulation-salaire-avec-rht');
+    const simulationAvsPercentInput = document.getElementById('simulation-avs-percent');
+    const simulationAvsSpan = document.getElementById('simulation-avs-amount');
+    const simulationLaaPercentInput = document.getElementById('simulation-laa-percent');
+    const simulationLaaSpan = document.getElementById('simulation-laa-amount');
+    const simulationChomagePercentInput = document.getElementById('simulation-chomage-percent');
+    const simulationChomageSpan = document.getElementById('simulation-chomage-amount');
+    const simulationApgPercentInput = document.getElementById('simulation-apg-percent');
+    const simulationApgSpan = document.getElementById('simulation-apg-amount');
+    const simulationLppMontantInput = document.getElementById('simulation-lpp-montant');
+    const simulationLppSpan = document.getElementById('simulation-lpp-amount');
+    const simulationImpotPercentInput = document.getElementById('simulation-impot-percent');
+    const simulationImpotSpan = document.getElementById('simulation-impot-amount');
+    const simulationTotalDeductionsSpan = document.getElementById('simulation-total-deductions');
+    const simulationTotalNetSpan = document.getElementById('simulation-total-net');
+
     const heuresJourSpan = document.getElementById('param-salaire-heures-jour');
     const salaireAnnuelSpan = document.getElementById('param-salaire-annuel-brut');
     const lamalAnneeSpan = document.getElementById('param-salaire-lamal-annee');
     const salaireTotalSpan = document.getElementById('param-salaire-annuel-total');
     const heuresAnnuellesSpan = document.getElementById('param-salaire-heures-annuelles');
     const tauxRhtSpan = document.getElementById('param-salaire-taux-rht-brut');
+    let tauxRhtActuel = 0;
 
     if (!nbJoursInput || !nbMoisInput || !salaireMensuelInput || !lamalMoisInput) return;
 
@@ -969,6 +1129,104 @@ function initialiserParametresSalaire() {
         localStorage.setItem('salaireNbMois', nbMoisInput.value || '');
         localStorage.setItem('salaireMensuelBrut', salaireMensuelInput.value || '');
         localStorage.setItem('salaireLamalMois', lamalMoisInput.value || '');
+    }
+
+    function sauverSimulation() {
+        if (simulationRhtPercentInput) localStorage.setItem('simulationRhtPercent', simulationRhtPercentInput.value || '');
+        if (simulationRhtNombreInput) localStorage.setItem('simulationRhtNombre', simulationRhtNombreInput.value || '');
+        if (simulationAvsPercentInput) localStorage.setItem('simulationAvsPercent', simulationAvsPercentInput.value || '');
+        if (simulationLaaPercentInput) localStorage.setItem('simulationLaaPercent', simulationLaaPercentInput.value || '');
+        if (simulationChomagePercentInput) localStorage.setItem('simulationChomagePercent', simulationChomagePercentInput.value || '');
+        if (simulationApgPercentInput) localStorage.setItem('simulationApgPercent', simulationApgPercentInput.value || '');
+        if (simulationLppMontantInput) localStorage.setItem('simulationLppMontant', simulationLppMontantInput.value || '');
+        if (simulationImpotPercentInput) localStorage.setItem('simulationImpotPercent', simulationImpotPercentInput.value || '');
+    }
+
+    function recalculerSimulation() {
+        if (!simulationSalaireSpan || !simulationRhtPercentInput || !simulationRhtNombreInput || !simulationAvsPercentInput || !simulationLaaPercentInput || !simulationChomagePercentInput || !simulationApgPercentInput || !simulationLppMontantInput || !simulationImpotPercentInput) {
+            return;
+        }
+
+        const salaireMensuel = toNumberFromInput(salaireMensuelInput.value);
+        const lamalMois = toNumberFromInput(lamalMoisInput.value);
+        const salaireCorrige = salaireMensuel + lamalMois;
+
+        if (simulationSalaireSpan) simulationSalaireSpan.textContent = formatDecimalFr(salaireMensuel);
+        if (simulationLamalSpan) simulationLamalSpan.textContent = formatDecimalFr(lamalMois);
+        if (simulationSalaireCorrigeSpan) simulationSalaireCorrigeSpan.textContent = formatDecimalFr(salaireCorrige);
+
+        const rhtPercent = toNumberFromInput(simulationRhtPercentInput ? simulationRhtPercentInput.value || '0' : '0');
+        const rhtNombre = toNumberFromInput(simulationRhtNombreInput ? simulationRhtNombreInput.value || '0' : '0');
+        const tauxRht = tauxRhtActuel || 0;
+        const totalRht = ((rhtNombre * tauxRht) * rhtPercent) / 100;
+        const salaireAvecRht = salaireCorrige - totalRht;
+
+        if (simulationTauxRhtSpan) simulationTauxRhtSpan.textContent = formatDecimalFr(tauxRht);
+        if (simulationTotalRhtSpan) simulationTotalRhtSpan.textContent = formatDecimalFr(totalRht);
+        if (simulationSalaireAvecRhtSpan) simulationSalaireAvecRhtSpan.textContent = formatDecimalFr(salaireAvecRht);
+
+        const tauxDepuisTable = trouverTauxImpotPourSalaire(salaireAvecRht);
+        if (simulationImpotPercentInput && tauxDepuisTable !== null) {
+            simulationImpotPercentInput.value = tauxDepuisTable.toFixed(2);
+        }
+
+        const avsPercent = toNumberFromInput(simulationAvsPercentInput ? simulationAvsPercentInput.value || '5.30' : '5.30');
+        const avsAmount = salaireCorrige * (avsPercent / 100);
+        const laaPercent = toNumberFromInput(simulationLaaPercentInput ? simulationLaaPercentInput.value || '0.85' : '0.85');
+        const laaAmount = salaireCorrige * (laaPercent / 100);
+        const chomagePercent = toNumberFromInput(simulationChomagePercentInput ? simulationChomagePercentInput.value || '1.1' : '1.1');
+        const chomageAmount = salaireCorrige * (chomagePercent / 100);
+        const apgPercent = toNumberFromInput(simulationApgPercentInput ? simulationApgPercentInput.value || '1.068' : '1.068');
+        const apgAmount = salaireCorrige * (apgPercent / 100);
+        const lppMontant = toNumberFromInput(simulationLppMontantInput ? simulationLppMontantInput.value || '230.45' : '230.45');
+        const impotPercent = toNumberFromInput(simulationImpotPercentInput ? simulationImpotPercentInput.value || (tauxDepuisTable !== null ? tauxDepuisTable.toString() : '13.37') : (tauxDepuisTable !== null ? tauxDepuisTable.toString() : '13.37'));
+        const impotAmount = salaireAvecRht * (impotPercent / 100);
+
+        const totalDeductions = avsAmount + laaAmount + chomageAmount + apgAmount + lppMontant + impotAmount;
+        const totalNet = salaireAvecRht - totalDeductions;
+
+        if (simulationAvsSpan) simulationAvsSpan.textContent = formatDecimalFr(avsAmount);
+        if (simulationLaaSpan) simulationLaaSpan.textContent = formatDecimalFr(laaAmount);
+        if (simulationChomageSpan) simulationChomageSpan.textContent = formatDecimalFr(chomageAmount);
+        if (simulationApgSpan) simulationApgSpan.textContent = formatDecimalFr(apgAmount);
+        if (simulationLppSpan) simulationLppSpan.textContent = formatDecimalFr(lppMontant);
+        if (simulationImpotSpan) simulationImpotSpan.textContent = formatDecimalFr(impotAmount);
+        if (simulationTotalDeductionsSpan) simulationTotalDeductionsSpan.textContent = formatDecimalFr(totalDeductions);
+        if (simulationTotalNetSpan) simulationTotalNetSpan.textContent = formatDecimalFr(totalNet);
+    }
+
+    function initialiserSimulation() {
+        if (!simulationRhtPercentInput) return;
+        if (!simulationRhtPercentInput || !simulationRhtNombreInput || !simulationAvsPercentInput || !simulationLaaPercentInput || !simulationChomagePercentInput || !simulationApgPercentInput || !simulationLppMontantInput || !simulationImpotPercentInput) return;
+
+        simulationRhtPercentInput.value = localStorage.getItem('simulationRhtPercent') ?? '0';
+        simulationRhtNombreInput.value = localStorage.getItem('simulationRhtNombre') ?? '0';
+        simulationAvsPercentInput.value = localStorage.getItem('simulationAvsPercent') ?? '5.30';
+        simulationLaaPercentInput.value = localStorage.getItem('simulationLaaPercent') ?? '0.85';
+        simulationChomagePercentInput.value = localStorage.getItem('simulationChomagePercent') ?? '1.1';
+        simulationApgPercentInput.value = localStorage.getItem('simulationApgPercent') ?? '1.068';
+        simulationLppMontantInput.value = localStorage.getItem('simulationLppMontant') ?? '230.45';
+        simulationImpotPercentInput.value = localStorage.getItem('simulationImpotPercent') ?? '13.37';
+
+        ['input', 'change'].forEach(evt => {
+            [
+                simulationRhtPercentInput,
+                simulationRhtNombreInput,
+                simulationAvsPercentInput,
+                simulationLaaPercentInput,
+                simulationChomagePercentInput,
+                simulationApgPercentInput,
+                simulationLppMontantInput,
+                simulationImpotPercentInput
+            ].forEach(inp => {
+                inp.addEventListener(evt, () => {
+                    sauverSimulation();
+                    recalculerSimulation();
+                });
+            });
+        });
+
+        recalculerSimulation();
     }
 
     function recalculer() {
@@ -986,12 +1244,15 @@ function initialiserParametresSalaire() {
         const salaireTotal = salaireAnnuel + lamalAnnee;
         const heuresAnnuelles = nbJours * hJour;
         const tauxRht = heuresAnnuelles > 0 ? (salaireTotal / heuresAnnuelles) : 0;
+        tauxRhtActuel = tauxRht;
 
         if (salaireAnnuelSpan) salaireAnnuelSpan.textContent = formatDecimalFr(salaireAnnuel);
         if (lamalAnneeSpan) lamalAnneeSpan.textContent = formatDecimalFr(lamalAnnee);
         if (salaireTotalSpan) salaireTotalSpan.textContent = formatDecimalFr(salaireTotal);
         if (heuresAnnuellesSpan) heuresAnnuellesSpan.textContent = formatDecimalFr(heuresAnnuelles);
         if (tauxRhtSpan) tauxRhtSpan.textContent = formatDecimalFr(tauxRht);
+
+        recalculerSimulation();
     }
 
     ['input', 'change'].forEach(evt => {
@@ -1001,8 +1262,40 @@ function initialiserParametresSalaire() {
         lamalMoisInput.addEventListener(evt, () => { sauver(); recalculer(); });
     });
 
+    initialiserSimulation();
     // Premier calcul à l'ouverture
     recalculer();
+}
+
+let ongletImpotsInitialise = false;
+function initialiserOngletImpots() {
+    if (ongletImpotsInitialise) {
+        renderTableImpots();
+        return;
+    }
+    ongletImpotsInitialise = true;
+    const importBtn = document.getElementById('impot-import-btn');
+    const fileInput = document.getElementById('impot-file-input');
+    const resetBtn = document.getElementById('impot-reset-btn');
+
+    if (importBtn && fileInput) {
+        importBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            importerTableImpotsDepuisFichier(file);
+            fileInput.value = '';
+        });
+    }
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            saveImpotTable([]);
+            renderTableImpots();
+            afficherStatutImportImpots('Le tableau a été réinitialisé.', 'info');
+        });
+    }
+
+    renderTableImpots();
 }
 
 // Fonction pour calculer l'écart
@@ -5512,12 +5805,14 @@ if (document.readyState === 'loading') {
     const tabGeneral = document.getElementById('param-tab-general');
     const tabRHT = document.getElementById('param-tab-rht');
     const tabSalaire = document.getElementById('param-tab-salaire');
+    const tabImpot = document.getElementById('param-tab-impot');
     const sectionRHT = document.getElementById('parametres-rht-section');
     const sectionGeneral = document.getElementById('parametres-general-section');
     const sectionSalaire = document.getElementById('parametres-salaire-section');
+    const sectionImpot = document.getElementById('parametres-impot-section');
 
     function resetTabs() {
-        [tabGeneral, tabRHT, tabSalaire].forEach(btn => {
+        [tabGeneral, tabRHT, tabSalaire, tabImpot].forEach(btn => {
             if (!btn) return;
             btn.style.background = '#fff';
             btn.style.color = '#1976d2';
@@ -5525,6 +5820,7 @@ if (document.readyState === 'loading') {
         if (sectionGeneral) sectionGeneral.style.display = 'none';
         if (sectionRHT) sectionRHT.style.display = 'none';
         if (sectionSalaire) sectionSalaire.style.display = 'none';
+        if (sectionImpot) sectionImpot.style.display = 'none';
     }
 
     function showGeneral() {
@@ -5550,10 +5846,17 @@ if (document.readyState === 'loading') {
             initialiserParametresSalaire();
         }
     }
+    function showImpot() {
+        resetTabs();
+        if (sectionImpot) sectionImpot.style.display = 'flex';
+        if (tabImpot) { tabImpot.style.background = '#1976d2'; tabImpot.style.color = '#fff'; }
+        initialiserOngletImpots();
+    }
 
     if (tabGeneral) tabGeneral.addEventListener('click', showGeneral);
     if (tabRHT) tabRHT.addEventListener('click', showRHT);
     if (tabSalaire) tabSalaire.addEventListener('click', showSalaire);
+    if (tabImpot) tabImpot.addEventListener('click', showImpot);
     
     // Initialiser la gestion des périodes
     initialiserGestionPeriodesRHT();
@@ -5997,6 +6300,58 @@ function updateCompteursAbsences() {
     if (compteurFeries) compteurFeries.textContent = joursFeries.length;
     if (compteurRTTHeures) compteurRTTHeures.textContent = (joursRTT.length * heuresJour).toFixed(2).replace('.', ',');
     if (compteurRHTHeures) compteurRHTHeures.textContent = (joursRHT.length * heuresJour).toFixed(2).replace('.', ',');
+    // RHT effectuées mensuelles
+    const effectueesEl = document.getElementById('compteur-rht-effectuees');
+    if (effectueesEl) {
+        // Filtrer les jours RHT du mois affiché
+        const moisStr = String(currentMonth + 1).padStart(2, '0');
+        const anneeStr = String(currentYear);
+        const joursRHTMois = joursRHT.filter(dateStr => {
+            return dateStr.startsWith(`${anneeStr}-${moisStr}-`);
+        });
+        // Heures de RHT des jours posés dans le calendrier
+        const heuresRHTJours = joursRHTMois.length * heuresJour;
+        
+        // Heures de RHT phase 2 pour les jours travaillés du mois
+        let heuresRHTPhase2 = 0;
+        // Récupérer les heures générales
+        const heuresJourGeneral = (typeof getHeuresJourMinutes === 'function') ? (getHeuresJourMinutes() / 60) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        
+        // Filtrer les jours du mois affiché
+        const joursMois = jours.filter(jour => {
+            return jour.date.startsWith(`${anneeStr}-${moisStr}-`);
+        });
+        
+        // Parcourir les jours du mois pour calculer les heures phase 2
+        joursMois.forEach(jour => {
+            // Vérifier si le jour est dans une période phase 2 RHT
+            if (typeof isDateInRHT === 'function' && isDateInRHT(jour.date)) {
+                // Vérifier si le jour est travaillé (pas vacances, RTT, fériés, rattrapés)
+                const isVac = typeof isJourVacances === 'function' ? isJourVacances(jour.date) : false;
+                const isRtt = typeof isJourRTT === 'function' ? isJourRTT(jour.date) : false;
+                const isFerie = typeof isJourFerie === 'function' ? isJourFerie(jour.date) : false;
+                const isRattrape = typeof isJourRattrape === 'function' ? isJourRattrape(jour.date) : false;
+                
+                if (!isVac && !isRtt && !isFerie && !isRattrape) {
+                    // Récupérer la période phase 2 pour cette date
+                    const periodePhase2 = typeof obtenirPeriodeRHTPourDate === 'function' ? obtenirPeriodeRHTPourDate(jour.date, 'phase2') : null;
+                    if (periodePhase2 && periodePhase2.heuresJour !== null && !isNaN(periodePhase2.heuresJour)) {
+                        const heuresJourPhase2 = periodePhase2.heuresJour;
+                        // Calculer la différence : (heures générales) - (heures phase 2)
+                        const difference = heuresJourGeneral - heuresJourPhase2;
+                        heuresRHTPhase2 += difference;
+                    }
+                }
+            }
+        });
+        
+        // Heures de RHT supplémentaires du mois
+        const heuresRHTSupp = parseFloat(sessionStorage.getItem('rht_heures_supp_view')) || 0;
+        // Total heures RHT effectuées
+        const totalRHTEffectuees = heuresRHTJours + heuresRHTSupp + heuresRHTPhase2;
+        effectueesEl.textContent = totalRHTEffectuees.toFixed(2).replace('.', ',');
+    }
+    
     // RHT perdus/supplémentaire mensuels
     const perduesEl = document.getElementById('compteur-rht-perdues');
     const suppEl = document.getElementById('compteur-rht-supp');
