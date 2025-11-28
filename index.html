@@ -92,16 +92,20 @@
       </div>
       <div id="graphique-heures-module">
         <div class="graphique-heures-header" style="display:flex; flex-direction:column; gap:8px;">
+          <h4 id="graphique-heures-titre" style="margin:0; text-align:center;">Heures travaillées</h4>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <h4 id="graphique-heures-titre" style="margin:0;">Heures travaillées</h4>
-            <div id="graphique-heures-onglets" style="display:flex; gap:6px;">
+            <div id="graphique-periode-onglets" style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="graphique-onglet graphique-onglet-periode active" data-periode="annee">Année</button>
+              <button class="graphique-onglet graphique-onglet-periode" data-periode="mois">Mois</button>
+            </div>
+            <div id="graphique-heures-onglets" style="display:flex; gap:6px; flex-wrap:wrap;">
               <button class="graphique-onglet active" data-mode="heures">Heures</button>
               <button class="graphique-onglet" data-mode="arrivees">Arrivées</button>
+              <button class="graphique-onglet" data-mode="departs">Départs</button>
             </div>
           </div>
         </div>
         <canvas id="graphique-heures-canvas"></canvas>
-        <div id="graphique-heures-legende">Objectif quotidien : 0,00 h</div>
       </div>
     </div>
     <div id="modules-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; justify-content: center; margin-bottom: 24px;">

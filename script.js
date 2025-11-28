@@ -38,6 +38,10 @@ let joursTravail = JSON.parse(localStorage.getItem('joursTravail')) || {
 let heuresSupplementaires = parseFloat(localStorage.getItem('heuresSupplementaires')) || 0;
 let graphiqueHeuresChart = null;
 let graphiqueHeuresMode = 'heures';
+let graphiquePeriodeMode = 'annee';
+
+const nomsMoisCourts = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+const nomsMoisLongs = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 // --- Utilitaires format décimal <-> affichage français ---
 function toNumberFromInput(val) {
@@ -461,27 +465,59 @@ function getHeuresCibleQuotidiennes() {
     return Number.isFinite(valeur) ? valeur : 0;
 }
 
+function filtrerJoursPourGraph(annee) {
+    const anneeStr = String(annee);
+    let selection = (jours || [])
+        .filter(j => j.date && j.date.startsWith(anneeStr + '-'))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (graphiquePeriodeMode === 'mois') {
+        const moisStr = String(currentMonth + 1).padStart(2, '0');
+        selection = selection.filter(j => j.date.slice(0, 7) === `${anneeStr}-${moisStr}`);
+    }
+
+    return selection;
+}
+
+function getLibellePeriode(annee) {
+    if (graphiquePeriodeMode === 'mois') {
+        const moisNom = nomsMoisLongs[currentMonth] || '';
+        return `${moisNom} ${annee}`.trim();
+    }
+    return `Année ${annee}`;
+}
+
 function preparerDonneesGraphique(annee) {
     const labels = [];
     const data = [];
     const cible = [];
+    const tickLabels = [];
     const heuresCible = getHeuresCibleQuotidiennes();
 
-    // Ne garder que les jours de l'année demandée, triés par date croissante
-    const anneeStr = String(annee);
-    const joursAnnee = (jours || [])
-        .filter(j => j.date && j.date.startsWith(anneeStr + '-'))
-        .sort((a, b) => a.date.localeCompare(b.date));
+    const joursSelectionnes = filtrerJoursPourGraph(annee);
+    let dernierMois = null;
 
-    joursAnnee.forEach(jour => {
+    joursSelectionnes.forEach(jour => {
         const [y, m, d] = jour.date.split('-');
+        const moisNum = parseInt(m, 10);
         const label = `${d}/${m}`;
         labels.push(label);
         data.push(getHeuresTravailleesPourGraph(jour.date));
         cible.push(heuresCible);
+
+        if (graphiquePeriodeMode === 'annee') {
+            if (moisNum !== dernierMois) {
+                tickLabels.push(nomsMoisCourts[moisNum - 1]);
+                dernierMois = moisNum;
+            } else {
+                tickLabels.push('');
+            }
+        } else {
+            tickLabels.push(String(parseInt(d, 10)));
+        }
     });
 
-    return { labels, data, cible, heuresCible };
+    return { labels, data, cible, heuresCible, tickLabels };
 }
 
 function heureHHMMToDecimal(hhmm) {
@@ -501,17 +537,17 @@ function decimalHourToHHMM(decimal) {
 function preparerDonneesArrivees(annee) {
     const labels = [];
     const data = [];
+    const tickLabels = [];
     let total = 0;
     let count = 0;
 
-    const anneeStr = String(annee);
-    const joursAnnee = (jours || [])
-        .filter(j => j.date && j.date.startsWith(anneeStr + '-'))
-        .sort((a, b) => a.date.localeCompare(b.date));
+    const joursSelectionnes = filtrerJoursPourGraph(annee);
+    let dernierMois = null;
 
-    joursAnnee.forEach(jourData => {
+    joursSelectionnes.forEach(jourData => {
         const dateStr = jourData.date;
         const [y, m, d] = dateStr.split('-');
+        const moisNum = parseInt(m, 10);
         const label = `${d}/${m}`;
 
         const estTravaille = isJourTravaille(dateStr);
@@ -521,6 +557,18 @@ function preparerDonneesArrivees(annee) {
             const decimal = heureHHMMToDecimal(jourData.arrivee);
             labels.push(label);
             data.push(decimal);
+
+            if (graphiquePeriodeMode === 'annee') {
+                if (moisNum !== dernierMois) {
+                    tickLabels.push(nomsMoisCourts[moisNum - 1]);
+                    dernierMois = moisNum;
+                } else {
+                    tickLabels.push('');
+                }
+            } else {
+                tickLabels.push(String(parseInt(d, 10)));
+            }
+
             if (decimal !== null) {
                 total += decimal;
                 count++;
@@ -533,21 +581,73 @@ function preparerDonneesArrivees(annee) {
     return {
         labels,
         data,
-        moyenne: count > 0 ? total / count : null
+        moyenne: count > 0 ? total / count : null,
+        tickLabels
     };
 }
 
-function mettreAJourLegendeGraphique(texte) {
-    const legendeDiv = document.getElementById('graphique-heures-legende');
-    if (legendeDiv) {
-        legendeDiv.textContent = texte;
-    }
+function preparerDonneesDeparts(annee) {
+    const labels = [];
+    const data = [];
+    const tickLabels = [];
+    let total = 0;
+    let count = 0;
+
+    const joursSelectionnes = filtrerJoursPourGraph(annee);
+    let dernierMois = null;
+
+    joursSelectionnes.forEach(jourData => {
+        const dateStr = jourData.date;
+        const [y, m, d] = dateStr.split('-');
+        const moisNum = parseInt(m, 10);
+        const label = `${d}/${m}`;
+
+        const estTravaille = isJourTravaille(dateStr);
+        const estJourSpecial = isJourVacances(dateStr) || isJourRTT(dateStr) || isJourFerie(dateStr);
+
+        if (jourData.depart && estTravaille && !estJourSpecial) {
+            const decimal = heureHHMMToDecimal(jourData.depart);
+            labels.push(label);
+            data.push(decimal);
+
+            if (graphiquePeriodeMode === 'annee') {
+                if (moisNum !== dernierMois) {
+                    tickLabels.push(nomsMoisCourts[moisNum - 1]);
+                    dernierMois = moisNum;
+                } else {
+                    tickLabels.push('');
+                }
+            } else {
+                tickLabels.push(String(parseInt(d, 10)));
+            }
+
+            if (decimal !== null) {
+                total += decimal;
+                count++;
+            }
+        }
+        // Si pas de départ valide, on n'ajoute rien pour cette date afin de n'afficher
+        // que les jours où il y a réellement une donnée de départ.
+    });
+
+    return {
+        labels,
+        data,
+        moyenne: count > 0 ? total / count : null,
+        tickLabels
+    };
 }
 
 function mettreAJourTitreGraphique(mode) {
     const titre = document.getElementById('graphique-heures-titre');
     if (!titre) return;
-    titre.textContent = mode === 'arrivees' ? "Heures d'arrivée" : 'Heures travaillées';
+    if (mode === 'arrivees') {
+        titre.textContent = "Heures d'arrivée";
+    } else if (mode === 'departs') {
+        titre.textContent = "Heures de départ";
+    } else {
+        titre.textContent = 'Heures travaillées';
+    }
 }
 
 function activerOngletGraphique(mode) {
@@ -557,9 +657,18 @@ function activerOngletGraphique(mode) {
     });
 }
 
+function activerOngletPeriode(mode) {
+    document.querySelectorAll('#graphique-periode-onglets .graphique-onglet-periode').forEach(btn => {
+        const btnMode = btn.getAttribute('data-periode');
+        btn.classList.toggle('active', btnMode === mode);
+    });
+}
+
 function construireConfigGraphique(mode, annee) {
+    const periodeLabel = getLibellePeriode(annee);
+
     if (mode === 'arrivees') {
-        const { labels, data, moyenne } = preparerDonneesArrivees(annee);
+        const { labels, data, moyenne, tickLabels } = preparerDonneesArrivees(annee);
         return {
             labels,
             datasets: [
@@ -572,11 +681,11 @@ function construireConfigGraphique(mode, annee) {
                     tension: 0.25,
                     fill: true,
                     spanGaps: false,
-                    pointRadius: 2
+                    pointRadius: 0
                 }
             ],
-            legend: `Arrivée moyenne : ${moyenne !== null ? decimalHourToHHMM(moyenne) : '--:--'}`,
-            chartTitle: `Arrivées - ${annee}`,
+            chartTitle: `Arrivées - ${periodeLabel}`,
+            tickLabels,
             yScale: {
                 beginAtZero: false,
                 suggestedMin: 5.5,
@@ -597,7 +706,46 @@ function construireConfigGraphique(mode, annee) {
         };
     }
 
-    const { labels, data, cible, heuresCible } = preparerDonneesGraphique(annee);
+    if (mode === 'departs') {
+        const { labels, data, moyenne, tickLabels } = preparerDonneesDeparts(annee);
+        return {
+            labels,
+            datasets: [
+                {
+                    label: "Heure de départ",
+                    data,
+                    borderColor: '#2e7d32',
+                    backgroundColor: 'rgba(46,125,50,0.12)',
+                    borderWidth: 2,
+                    tension: 0.25,
+                    fill: true,
+                    spanGaps: false,
+                    pointRadius: 0
+                }
+            ],
+            chartTitle: `Départs - ${periodeLabel}`,
+            tickLabels,
+            yScale: {
+                beginAtZero: false,
+                suggestedMin: 15,
+                suggestedMax: 20,
+                ticks: {
+                    callback(value) {
+                        return decimalHourToHHMM(value);
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'Heure'
+                }
+            },
+            tooltipFormatter(value) {
+                return decimalHourToHHMM(value);
+            }
+        };
+    }
+
+    const { labels, data, cible, heuresCible, tickLabels } = preparerDonneesGraphique(annee);
     return {
         labels,
         datasets: [
@@ -621,8 +769,8 @@ function construireConfigGraphique(mode, annee) {
                 pointRadius: 0
             }
         ],
-        legend: `Objectif quotidien : ${heuresCible.toFixed(2).replace('.', ',')} h`,
-        chartTitle: `Année ${annee}`,
+        chartTitle: periodeLabel,
+        tickLabels,
         yScale: {
             beginAtZero: true,
             title: {
@@ -661,11 +809,10 @@ function initialiserGraphiqueHeures() {
             },
             plugins: {
                 legend: {
-                    position: 'bottom'
+                    display: false
                 },
                 title: {
-                    display: true,
-                    text: config.chartTitle
+                    display: false
                 },
                 tooltip: {
                     callbacks: {
@@ -681,9 +828,12 @@ function initialiserGraphiqueHeures() {
                 x: {
                     ticks: {
                         maxRotation: 0,
-                        autoSkip: true,
+                        autoSkip: false,
                         callback: function(value, index) {
-                            return index % 7 === 0 ? this.getLabelForValue(value) : '';
+                            if (config.tickLabels && config.tickLabels[index]) {
+                                return config.tickLabels[index];
+                            }
+                            return '';
                         }
                     }
                 },
@@ -691,8 +841,6 @@ function initialiserGraphiqueHeures() {
             }
         }
     });
-
-    mettreAJourLegendeGraphique(config.legend);
 }
 
 function mettreAJourGraphiqueHeures() {
@@ -708,9 +856,6 @@ function mettreAJourGraphiqueHeures() {
     const config = construireConfigGraphique(graphiqueHeuresMode, currentYear);
     graphiqueHeuresChart.data.labels = config.labels;
     graphiqueHeuresChart.data.datasets = config.datasets;
-    if (graphiqueHeuresChart.options?.plugins?.title) {
-        graphiqueHeuresChart.options.plugins.title.text = config.chartTitle;
-    }
     if (!graphiqueHeuresChart.options.plugins.tooltip) {
         graphiqueHeuresChart.options.plugins.tooltip = {};
     }
@@ -721,9 +866,17 @@ function mettreAJourGraphiqueHeures() {
             return `${label}: ${config.tooltipFormatter(value)}`;
         }
     };
+    // Mettre à jour le callback de l'axe X pour afficher les libellés de période
+    if (graphiqueHeuresChart.options.scales.x && graphiqueHeuresChart.options.scales.x.ticks) {
+        graphiqueHeuresChart.options.scales.x.ticks.callback = function(value, index) {
+            if (config.tickLabels && config.tickLabels[index]) {
+                return config.tickLabels[index];
+            }
+            return '';
+        };
+    }
     graphiqueHeuresChart.options.scales.y = config.yScale;
     graphiqueHeuresChart.update('none');
-    mettreAJourLegendeGraphique(config.legend);
 }
 
 (function initialiserOngletsGraphique() {
@@ -742,6 +895,22 @@ function mettreAJourGraphiqueHeures() {
     });
     activerOngletGraphique(graphiqueHeuresMode);
     mettreAJourTitreGraphique(graphiqueHeuresMode);
+})();
+
+(function initialiserOngletsPeriode() {
+    const onglets = document.querySelectorAll('#graphique-periode-onglets .graphique-onglet-periode');
+    if (!onglets.length) return;
+    onglets.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-periode');
+            if (mode && mode !== graphiquePeriodeMode) {
+                graphiquePeriodeMode = mode;
+                activerOngletPeriode(mode);
+                mettreAJourGraphiqueHeures();
+            }
+        });
+    });
+    activerOngletPeriode(graphiquePeriodeMode);
 })();
 
 // --- Paramètres : onglet Salaire ---

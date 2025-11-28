@@ -67,10 +67,6 @@
 .graphique-onglet:focus {
     outline: none;
 }
-#graphique-heures-legende {
-    font-size: 0.95em;
-    color: #555;
-}
 body {
     display: flex;
     flex-direction: column;
