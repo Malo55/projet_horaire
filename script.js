@@ -1464,6 +1464,7 @@ function afficherJours() {
     let totalEcart = 0;       // Écart standard (jours hors RHT)
     let totalEcreteRHT = 0;   // Heures écrêtées en période RHT (écart > 0 en RHT)
     let totalSuppRHT = 0;     // Heures manquantes en période RHT (écart < 0 en RHT)
+    let aDesJoursRHT = false; // Vrai seulement si au moins un jour du mois est en période RHT
     // Trier les jours par date décroissante (du plus récent au plus ancien)
     jours.sort((a, b) => b.date.localeCompare(a.date));
     // Filtrer les jours du mois affiché
@@ -1516,6 +1517,7 @@ function afficherJours() {
         } else if (isDateInRHTPhase1(jour.date)) {
             // Mode RHT phase 1 : écrêté si positif, RHT supp si négatif
             // → NE contribue PAS au total d'heures sup standard
+            aDesJoursRHT = true;
             if (ecartDyn > 0) {
                 ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
                 ecartClassDyn = 'ecart-positif';
@@ -1531,6 +1533,7 @@ function afficherJours() {
         } else if (isRht) {
             // Mode RHT phase 2 : même logique
             // → NE contribue PAS au total d'heures sup standard
+            aDesJoursRHT = true;
             if (ecartDyn > 0) {
                 ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
                 ecartClassDyn = 'ecart-positif';
@@ -1669,8 +1672,8 @@ function afficherJours() {
 
     let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
 
-    // Afficher le détail RHT uniquement si des jours RHT existent ce mois
-    if (totalEcreteRHT > 0 || totalSuppRHT > 0) {
+    // Afficher le détail RHT uniquement si le mois contient des jours en période RHT
+    if (aDesJoursRHT) {
         htmlTotaux += `<br/><span style="font-size:0.92em;color:#8e24aa;">`;
         if (totalEcreteRHT > 0) {
             htmlTotaux += `Écrêté RHT : <span class="ecart-positif">+${totalEcreteRHT.toFixed(2)}</span>`;
