@@ -18,3 +18,28 @@ Ajouter graphique de suivi d'heure supp
 
 Ajouter calendrier de ferié suisse neuchatel et peut etre d'autres
 Systeme de compte / sauvegarde de données
+
+
+Fonctionnalités :
+  Calendrier :
+  le mois avec < et > pour selectionner
+  l'année avec < et > pour selectionner
+  numéros de semaine 
+  
+  Bouton "vacances" qui ouvre le modal :
+  année avec < et > pour selectionner
+
+
+  Type de jours :
+    CP
+      Jour plein
+      Heures
+    RHT
+      Jour plein
+      Heures
+    Férié
+    Jour rattrappé
+    RTT
+      Jour plein
+      Heures
+      
