@@ -822,7 +822,7 @@ function construireConfigGraphique(mode, annee) {
             ],
             chartTitle: `Arrivées - ${periodeLabel}`,
             tickLabels,
-            yScale: {
+            yScale: echelleGetYScale('arrivees', {
                 beginAtZero: false,
                 suggestedMin: 5.5,
                 suggestedMax: 11,
@@ -835,7 +835,7 @@ function construireConfigGraphique(mode, annee) {
                     display: true,
                     text: 'Heure'
                 }
-            },
+            }),
             tooltipFormatter(value) {
                 return decimalHourToHHMM(value);
             }
@@ -861,7 +861,7 @@ function construireConfigGraphique(mode, annee) {
             ],
             chartTitle: `Départs - ${periodeLabel}`,
             tickLabels,
-            yScale: {
+            yScale: echelleGetYScale('departs', {
                 beginAtZero: false,
                 suggestedMin: 15,
                 suggestedMax: 20,
@@ -874,7 +874,7 @@ function construireConfigGraphique(mode, annee) {
                     display: true,
                     text: 'Heure'
                 }
-            },
+            }),
             tooltipFormatter(value) {
                 return decimalHourToHHMM(value);
             }
@@ -907,13 +907,13 @@ function construireConfigGraphique(mode, annee) {
         ],
         chartTitle: periodeLabel,
         tickLabels,
-        yScale: {
+        yScale: echelleGetYScale('heures', {
             beginAtZero: true,
             title: {
                 display: true,
                 text: 'Heures'
             }
-        },
+        }),
         tooltipFormatter(value) {
             return `${Number(value || 0).toFixed(2)} h`;
         }
@@ -1044,6 +1044,137 @@ function mettreAJourGraphiqueHeures() {
     graphiqueHeuresChart.update('none');
 }
 
+// ─── Réglage d'échelle du graphique ─────────────────────────────────────────
+// Clés localStorage : graphique_echelle_<mode>  →  { min, max }  (valeurs décimales)
+// Format d'affichage : HH:MM pour arrivées/départs, décimal pour heures.
+
+const ECHELLE_LS_PREFIX = 'graphique_echelle_';
+
+function echelleLoad(mode) {
+    try {
+        const raw = localStorage.getItem(ECHELLE_LS_PREFIX + mode);
+        if (!raw) return { min: null, max: null };
+        const parsed = JSON.parse(raw);
+        return {
+            min: (parsed.min !== undefined && parsed.min !== null) ? parseFloat(parsed.min) : null,
+            max: (parsed.max !== undefined && parsed.max !== null) ? parseFloat(parsed.max) : null
+        };
+    } catch { return { min: null, max: null }; }
+}
+
+function echelleSave(mode, min, max) {
+    localStorage.setItem(ECHELLE_LS_PREFIX + mode, JSON.stringify({ min, max }));
+}
+
+function echelleFormatInput(mode, decimalVal) {
+    // mode arrivees/departs → HH:MM ; mode heures → décimal avec 2 décimales
+    if (decimalVal === null || decimalVal === undefined || isNaN(decimalVal)) return '';
+    if (mode === 'heures') return Number(decimalVal).toFixed(2);
+    return decimalHourToHHMM(decimalVal);
+}
+
+function echelleParseInput(mode, strVal) {
+    if (!strVal || !strVal.trim()) return null;
+    if (mode === 'heures') {
+        const v = parseFloat(strVal.replace(',', '.'));
+        return isNaN(v) ? null : v;
+    }
+    // Format HH:MM ou H:MM
+    const match = strVal.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    return parseInt(match[1], 10) + parseInt(match[2], 10) / 60;
+}
+
+function echelleGetPlaceholder(mode, type) {
+    const defaults = {
+        arrivees: { min: '05:30', max: '11:00' },
+        departs:  { min: '15:00', max: '20:00' },
+        heures:   { min: '0.00',  max: '12.00' }
+    };
+    return (defaults[mode] || defaults.heures)[type];
+}
+
+// Lecture de l'échelle courante pour injecter dans yScale
+function echelleGetYScale(mode, baseYScale) {
+    const { min, max } = echelleLoad(mode);
+    const scale = Object.assign({}, baseYScale);
+    if (min !== null) { scale.min = min; delete scale.suggestedMin; }
+    if (max !== null) { scale.max = max; delete scale.suggestedMax; }
+    return scale;
+}
+
+// Création et injection du panneau HTML sous le graphique
+function creerPanneauEchelle() {
+    const module = document.getElementById('graphique-heures-module');
+    if (!module || document.getElementById('graphique-echelle-panel')) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'graphique-echelle-panel';
+    panel.style.cssText = `
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        margin-top: 6px; padding: 6px 10px;
+        background: rgba(0,0,0,0.04); border-radius: 6px; font-size: 0.82em;
+    `;
+
+    panel.innerHTML = `
+        <span style="font-weight:600; color:#555; white-space:nowrap;">Échelle Y :</span>
+        <label style="display:flex; align-items:center; gap:4px; white-space:nowrap;">
+            Min
+            <input id="echelle-min" type="text" placeholder="auto"
+                style="width:62px; padding:2px 5px; border:1px solid #bbb; border-radius:4px; text-align:center; font-size:1em;">
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; white-space:nowrap;">
+            Max
+            <input id="echelle-max" type="text" placeholder="auto"
+                style="width:62px; padding:2px 5px; border:1px solid #bbb; border-radius:4px; text-align:center; font-size:1em;">
+        </label>
+        <button id="echelle-appliquer" style="padding:2px 10px; border-radius:4px; border:1px solid #999; cursor:pointer; background:#fff;">Appliquer</button>
+        <button id="echelle-auto" style="padding:2px 10px; border-radius:4px; border:1px solid #aaa; cursor:pointer; background:#fff; color:#666;">Auto</button>
+        <span id="echelle-hint" style="color:#888; font-style:italic;"></span>
+    `;
+
+    module.appendChild(panel);
+
+    document.getElementById('echelle-appliquer').addEventListener('click', () => {
+        const minStr = document.getElementById('echelle-min').value.trim();
+        const maxStr = document.getElementById('echelle-max').value.trim();
+        const min = echelleParseInput(graphiqueHeuresMode, minStr);
+        const max = echelleParseInput(graphiqueHeuresMode, maxStr);
+        echelleSave(graphiqueHeuresMode, min, max);
+        mettreAJourGraphiqueHeures();
+    });
+
+    document.getElementById('echelle-auto').addEventListener('click', () => {
+        echelleSave(graphiqueHeuresMode, null, null);
+        document.getElementById('echelle-min').value = '';
+        document.getElementById('echelle-max').value = '';
+        mettreAJourGraphiqueHeures();
+    });
+
+    // Appliquer aussi avec Entrée
+    ['echelle-min', 'echelle-max'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('echelle-appliquer').click();
+        });
+    });
+}
+
+function mettreAJourPanneauEchelle() {
+    const minInput = document.getElementById('echelle-min');
+    const maxInput = document.getElementById('echelle-max');
+    const hint     = document.getElementById('echelle-hint');
+    if (!minInput) return;
+
+    const { min, max } = echelleLoad(graphiqueHeuresMode);
+    const isHeure = (graphiqueHeuresMode !== 'heures');
+
+    minInput.value       = echelleFormatInput(graphiqueHeuresMode, min);
+    maxInput.value       = echelleFormatInput(graphiqueHeuresMode, max);
+    minInput.placeholder = echelleGetPlaceholder(graphiqueHeuresMode, 'min');
+    maxInput.placeholder = echelleGetPlaceholder(graphiqueHeuresMode, 'max');
+    hint.textContent     = isHeure ? 'format HH:MM' : 'format décimal (ex: 8.30)';
+}
+
 (function initialiserOngletsGraphique() {
     const onglets = document.querySelectorAll('#graphique-heures-onglets .graphique-onglet');
     if (!onglets.length) return;
@@ -1054,12 +1185,15 @@ function mettreAJourGraphiqueHeures() {
                 graphiqueHeuresMode = mode;
                 activerOngletGraphique(mode);
                 mettreAJourTitreGraphique(mode);
+                mettreAJourPanneauEchelle();
                 mettreAJourGraphiqueHeures();
             }
         });
     });
     activerOngletGraphique(graphiqueHeuresMode);
     mettreAJourTitreGraphique(graphiqueHeuresMode);
+    creerPanneauEchelle();
+    mettreAJourPanneauEchelle();
 })();
 
 (function initialiserOngletsPeriode() {
@@ -1327,7 +1461,9 @@ function formaterDate(dateStr) {
 // Fonction pour afficher les jours dans le tableau (avec suppression, couleur, et total)
 function afficherJours() {
     tableBody.innerHTML = '';
-    let totalEcart = 0;
+    let totalEcart = 0;       // Écart standard (jours hors RHT)
+    let totalEcreteRHT = 0;   // Heures écrêtées en période RHT (écart > 0 en RHT)
+    let totalSuppRHT = 0;     // Heures manquantes en période RHT (écart < 0 en RHT)
     // Trier les jours par date décroissante (du plus récent au plus ancien)
     jours.sort((a, b) => b.date.localeCompare(a.date));
     // Filtrer les jours du mois affiché
@@ -1378,28 +1514,34 @@ function afficherJours() {
             ecartAfficheDyn = (isRtt ? '-' : '') + heuresJourEff.toFixed(2);
             ecartClassDyn = 'ecart-negatif';
         } else if (isDateInRHTPhase1(jour.date)) {
-            // Mode RHT phase 1 : heures sup écrêtées, heures inf dans compteurs RHT
+            // Mode RHT phase 1 : écrêté si positif, RHT supp si négatif
+            // → NE contribue PAS au total d'heures sup standard
             if (ecartDyn > 0) {
                 ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
-                ecartClassDyn = 'ecart-positif'; // Vert pour positif
+                ecartClassDyn = 'ecart-positif';
+                totalEcreteRHT += ecartDyn;
             } else if (ecartDyn < 0) {
                 ecartAfficheDyn = `${ecartDyn.toFixed(2)}`;
-                ecartClassDyn = 'ecart-negatif'; // Rouge pour négatif
+                ecartClassDyn = 'ecart-negatif';
+                totalSuppRHT += Math.abs(ecartDyn);
             } else {
                 ecartAfficheDyn = '0.00';
-                ecartClassDyn = 'ecart-zero'; // Jaune pour zéro
+                ecartClassDyn = 'ecart-zero';
             }
         } else if (isRht) {
-            // Mode RHT phase 2 : comportement normal
+            // Mode RHT phase 2 : même logique
+            // → NE contribue PAS au total d'heures sup standard
             if (ecartDyn > 0) {
                 ecartAfficheDyn = `+${ecartDyn.toFixed(2)}`;
-                ecartClassDyn = 'ecart-positif'; // Vert pour positif
+                ecartClassDyn = 'ecart-positif';
+                totalEcreteRHT += ecartDyn;
             } else if (ecartDyn < 0) {
                 ecartAfficheDyn = `${ecartDyn.toFixed(2)}`;
-                ecartClassDyn = 'ecart-negatif'; // Rouge pour négatif
+                ecartClassDyn = 'ecart-negatif';
+                totalSuppRHT += Math.abs(ecartDyn);
             } else {
                 ecartAfficheDyn = '0.00';
-                ecartClassDyn = 'ecart-zero'; // Jaune pour zéro
+                ecartClassDyn = 'ecart-zero';
             }
         } else {
             // Mode standard : affecte le total global
@@ -1472,53 +1614,140 @@ function afficherJours() {
         if (rowClass) {
             tr.className = rowClass;
         }
+        tr.setAttribute('data-date', jour.date);
         tableBody.appendChild(tr);
     });
-    // On ajoute la déduction RTT pour les jours RTT sans saisie d'horaire
+    // On ajoute la déduction RTT pour les jours RTT sans saisie d'horaire UNIQUEMENT
+    // (les jours RTT avec saisie sont déjà traités dans la boucle avec ecart=0)
+    // On collecte d'abord les RTT non saisis pour les trier par date décroissante
+    const rttNonSaisis = [];
     joursRTTSet.forEach(dateStr => {
-        totalEcart -= heuresJour;
+        const dejaSaisi = joursAffiches.some(j => j.date === dateStr);
+        if (!dejaSaisi) {
+            totalEcart -= heuresJour;
+            rttNonSaisis.push(dateStr);
+        }
+    });
+    // Trier par date décroissante (même ordre que les autres lignes)
+    rttNonSaisis.sort((a, b) => b.localeCompare(a));
+    // Insérer chaque RTT non saisi dans le tableau à la bonne position (date décroissante)
+    rttNonSaisis.forEach(dateStr => {
+        const ecartRTT = -heuresJour;
+        const ecartMin = Math.round(heuresJour * 60);
+        const hh = String(Math.floor(ecartMin / 60)).padStart(2, '0');
+        const mm = String(ecartMin % 60).padStart(2, '0');
+        const ecartHHMM = `-${hh}:${mm}`;
+        const tr = document.createElement('tr');
+        tr.style.cssText = 'background:#e8f5e9; font-style:italic; color:#2e7d32;';
+        tr.innerHTML = `
+            <td>${formaterDate(dateStr)}</td>
+            <td colspan="4" style="text-align:center; font-weight:600; letter-spacing:0.05em; color:#2e7d32;">RTT</td>
+            <td style="color:#2e7d32;">0.00</td>
+            <td class="ecart-negatif">${ecartRTT.toFixed(2)}<br><span style="font-size:0.95em;color:#ff8a80;font-weight:normal;">${ecartHHMM}</span></td>
+            <td></td>
+        `;
+        // Insérer à la bonne position selon la date (ordre décroissant)
+        let inserted = false;
+        const rows = tableBody.querySelectorAll('tr');
+        for (const existingRow of rows) {
+            const dateTd = existingRow.querySelector('td');
+            if (!dateTd) continue;
+            // Retrouver la date ISO depuis le texte formaté en remontant sur joursAffiches ou rttNonSaisis
+            const rowDateAttr = existingRow.getAttribute('data-date');
+            if (rowDateAttr && rowDateAttr < dateStr) {
+                tableBody.insertBefore(tr, existingRow);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted) tableBody.appendChild(tr);
     });
     
     // Affichage du total d'heures supplémentaires du mois
     const totalEcartDiv = document.getElementById('total-ecart');
     const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
-    
-    totalEcartDiv.innerHTML = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
+
+    let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
+
+    // Afficher le détail RHT uniquement si des jours RHT existent ce mois
+    if (totalEcreteRHT > 0 || totalSuppRHT > 0) {
+        htmlTotaux += `<br/><span style="font-size:0.92em;color:#8e24aa;">`;
+        if (totalEcreteRHT > 0) {
+            htmlTotaux += `Écrêté RHT : <span class="ecart-positif">+${totalEcreteRHT.toFixed(2)}</span>`;
+        }
+        if (totalSuppRHT > 0) {
+            if (totalEcreteRHT > 0) htmlTotaux += ` &nbsp;|&nbsp; `;
+            htmlTotaux += `RHT supp : <span class="ecart-negatif">-${totalSuppRHT.toFixed(2)}</span>`;
+        }
+        htmlTotaux += `</span>`;
+    }
+
+    totalEcartDiv.innerHTML = htmlTotaux;
 
     // Calcul et affichage du total d'heure supplémentaire de l'année (avec heuresSupplementaires)
     const anneeStrAnnee = String(currentYear);
     const joursAnnee = jours.filter(jour => jour.date.startsWith(anneeStrAnnee + '-'));
-    let totalEcartAnnee = 0;
-    // On prend en compte les RTT de l'année
+    let totalEcartAnnee = 0;      // Cumul net de tous les jours (standard + RHT)
+    let totalEcreteAnneeRHT = 0;  // Heures écrêtées RHT de l'année
+    let totalSuppAnneeRHT = 0;    // Heures manquantes RHT de l'année
     const joursRTTAnnee = joursRTT.filter(dateStr => dateStr.startsWith(anneeStrAnnee + '-'));
     joursAnnee.forEach(jour => {
         const isVac = isJourVacances(jour.date);
         const isRtt = isJourRTT(jour.date);
-        const isRht = isDateInRHT(jour.date);
-        let heuresTravDyn = (isVac || isRtt) ? 0 : parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
-        
+        const isRhtP1 = isDateInRHTPhase1(jour.date);
+        const isRhtP2 = isDateInRHT(jour.date);
+        const isRht = isRhtP1 || isRhtP2;
+
+        let heuresTravDyn = 0;
+        if (!(isVac || isRtt)) {
+            if (isRht) {
+                const pauseOffEff = getPauseOfferteEffective(jour.date);
+                heuresTravDyn = parseFloat(calculerHeuresAvecPause(
+                    jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
+                    jour.pausesAvant, jour.pausesApres,
+                    pauseOffEff,
+                    true
+                ));
+            } else {
+                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+            }
+        }
+
         if (isVac || isRtt) {
             // Vacances et RTT : pas d'écart
-        } else if (isDateInRHTPhase1(jour.date)) {
-            // Jours RHT phase 1: heures sup écrêtées, heures inf dans compteurs RHT
-            // Les heures écrêtées ne sont pas ajoutées au total annuel général
-            // (elles sont gérées dans les compteurs RHT dédiés)
-            let ecartDyn = heuresTravDyn - heuresJour;
-            // Heures inf : ne pas ajouter au total annuel (déjà dans compteurs RHT)
         } else if (isRht) {
-            // Jours RHT phase 2: n'affectent ni le total annuel ni les compteurs ici
+            // Jours RHT (Phase 1 ou Phase 2) : écrêté ou RHT supp uniquement
+            // → NE contribue PAS au total d'heures sup standard
+            const heuresJourEff = getHeuresJourMinutesEffective(jour.date) / 60;
+            const ecartDyn = heuresTravDyn - heuresJourEff;
+            if (ecartDyn > 0) totalEcreteAnneeRHT += ecartDyn;
+            else if (ecartDyn < 0) totalSuppAnneeRHT += Math.abs(ecartDyn);
         } else {
-            // Mode standard : affecte le total annuel
-            let ecartDyn = heuresTravDyn - heuresJour;
+            // Mode standard
+            const ecartDyn = heuresTravDyn - heuresJour;
             totalEcartAnnee += ecartDyn;
         }
     });
     // Déduction RTT sans saisie d'horaire
-    totalEcartAnnee -= joursRTTAnnee.length * heuresJour;
+    joursRTTAnnee.forEach(dateStr => {
+        const dejaSaisi = joursAnnee.some(j => j.date === dateStr);
+        if (!dejaSaisi) totalEcartAnnee -= heuresJour;
+    });
     // Ajout du paramètre heuresSupplementaires
     totalEcartAnnee += heuresSupplementaires;
     const totalClassAnnee = totalEcartAnnee >= 0 ? 'ecart-positif' : 'ecart-negatif';
     totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${totalEcartAnnee >= 0 ? '+' : ''}${totalEcartAnnee.toFixed(2)}</span>`;
+    // Afficher le détail RHT annuel si présent
+    if (totalEcreteAnneeRHT > 0 || totalSuppAnneeRHT > 0) {
+        let htmlRHTAnnee = `<br/><span style="font-size:0.92em;color:#8e24aa;">`;
+        if (totalEcreteAnneeRHT > 0) htmlRHTAnnee += `Écrêté RHT (année) : <span class="ecart-positif">+${totalEcreteAnneeRHT.toFixed(2)}</span>`;
+        if (totalSuppAnneeRHT > 0) {
+            if (totalEcreteAnneeRHT > 0) htmlRHTAnnee += ` &nbsp;|&nbsp; `;
+            htmlRHTAnnee += `RHT supp (année) : <span class="ecart-negatif">-${totalSuppAnneeRHT.toFixed(2)}</span>`;
+        }
+        htmlRHTAnnee += `</span>`;
+        totalEcartDiv.innerHTML += htmlRHTAnnee;
+    }
     // Ajout des listeners pour les boutons supprimer
     document.querySelectorAll('.btn-supprimer').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -3033,12 +3262,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Mettre à jour l'interface
                 if (pauseOfferteInput) pauseOfferteInput.value = pauseOfferte;
                 
-                // Recalculer tous les écarts
+                // Recalculer tous les écarts avec les bons paramètres (pausesAvant/pausesApres)
                 jours = jours.map(jour => {
                     return {
                         ...jour,
-                        heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pauseSupActive, jour.pause2Debut, jour.pause2Fin, jour.pause1Debut, jour.pause1Fin)),
-                        ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pauseSupActive, jour.pause2Debut, jour.pause2Fin, jour.pause1Debut, jour.pause1Fin)), heuresJour)
+                        heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)),
+                        ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)), heuresJour)
                     };
                 });
                 localStorage.setItem('jours', JSON.stringify(jours));
@@ -3312,11 +3541,14 @@ function calculerHeuresSupZero() {
     // Calcul
     if (
         arriveeMin === null || departMin === null ||
-        pauseMidiDureeMin === null || pause1DureeMin === null
+        pause1DureeMin === null ||
+        (!zeroRhtChecked && pauseMidiDureeMin === null)
     ) {
         zeroHeuresSup.textContent = '';
         return;
     }
+    // En mode RHT, si pause midi non saisie, on force à 0
+    if (zeroRhtChecked && pauseMidiDureeMin === null) pauseMidiDureeMin = 0;
     let dureeTravail = departMin - arriveeMin;
     // Pause midi : déduite seulement si pas en mode RHT
     if (!zeroRhtChecked) {
@@ -3465,11 +3697,14 @@ function calculerHeuresSupCalculette() {
     // Calcul
     if (
         arriveeMin === null || departMin === null ||
-        pauseMidiDureeMin === null || pause1DureeMin === null
+        pause1DureeMin === null ||
+        (!calcRhtChecked && pauseMidiDureeMin === null)
     ) {
         calcHeuresSup.textContent = '';
         return;
     }
+    // En mode RHT, si pause midi non saisie, on force à 0
+    if (calcRhtChecked && pauseMidiDureeMin === null) pauseMidiDureeMin = 0;
     let dureeTravail = departMin - arriveeMin;
     // Pause midi : déduite seulement si pas en mode RHT
     if (!calcRhtChecked) {
@@ -3486,25 +3721,6 @@ function calculerHeuresSupCalculette() {
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
-    
-    // Debug: afficher les valeurs pour comprendre le calcul
-    console.log('=== DEBUG Module 1 Delta ===');
-    console.log('Mode RHT activé:', calcRhtChecked);
-    console.log('Arrivée:', arrivee, '(', arriveeMin, 'min)');
-    console.log('Départ:', depart, '(', departMin, 'min)');
-    console.log('Durée brute:', departMin - arriveeMin, 'min');
-    console.log('Pause midi saisie:', pauseMidiDureeMin, 'min');
-    console.log('Pause midi appliquée:', calcRhtChecked ? '0 (mode RHT)' : pauseMidiDureeMin, 'min');
-    console.log('Pause matin:', pause1DureeMin, 'min');
-    console.log('Pause sup (pause2 + après-midi):', pauseSup, 'min');
-    console.log('Total pauses (matin + sup):', totalPauses, 'min');
-    console.log('Pause offerte:', pauseOfferteVal, 'min');
-    console.log('Durée travail après pauses:', dureeTravail, 'min');
-    console.log('Heures à faire (RHT:', calcRhtChecked, '):', heuresJourMin/60, 'h (', heuresJourMin, 'min)');
-    console.log('Heures sup calculées:', heuresSup, 'h');
-    console.log('localStorage rht_heures_dec:', localStorage.getItem('rht_heures_dec'));
-    console.log('localStorage rht_pause_offerte:', localStorage.getItem('rht_pause_offerte'));
-    console.log('======================');
     
     // Affichage des heures sup
     calcHeuresSup.textContent = (heuresSup >= 0 ? '+' : '') + heuresSup.toFixed(2) + ' h';
@@ -6254,13 +6470,11 @@ afficherJours = function() {
     // Maintenant on recalcule seulement les accumulateurs RHT pour le mois affiché
     const moisStr = String(currentMonth + 1).padStart(2, '0');
     const anneeStr = String(currentYear);
-    console.log('Recalcul RHT pour mois:', moisStr, 'année:', anneeStr, 'currentMonth:', currentMonth, 'currentYear:', currentYear);
     
     const joursAffiches = jours.filter(j => {
         const [y, m] = j.date.split('-');
         return y === anneeStr && m === moisStr;
     });
-    console.log('Jours filtrés pour ce mois:', joursAffiches.length, 'sur', jours.length, 'total');
     
     // Recalcul des accumulateurs RHT seulement
     joursAffiches.forEach(jour => {
