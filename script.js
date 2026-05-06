@@ -220,8 +220,8 @@ if (pauseOfferteInput) {
         jours = jours.map(jour => {
             return {
                 ...jour,
-                heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)),
-                ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)), heuresJour)
+                heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)),
+                ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)), heuresJour)
             };
         });
         localStorage.setItem('jours', JSON.stringify(jours));
@@ -569,7 +569,7 @@ majCalendrier();
 // --- Correction de la prise en compte du temps minimal de pause midi dans tous les calculs ---
 
 // Fonction pour calculer les heures travaillées (nouvelle version avec pauses dynamiques)
-function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres) {
+function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres, dateStr = null) {
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return 0;
         const [hh, mm] = h.split(':').map(Number);
@@ -608,16 +608,21 @@ function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant
             }
         });
     }
-    // Seul l'excédent > pause offerte est déduit
     let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
-    if (totalPauseDyn > pauseOfferteVal) {
-        totalMinutes -= (totalPauseDyn - pauseOfferteVal);
+    const anneeCalc = dateStr ? parseInt(dateStr.substring(0, 4)) : currentYear;
+    if (anneeCalc >= 2026) {
+        // Pause non consommée créditée en heures sup ; excédent déduit
+        totalMinutes += (pauseOfferteVal - totalPauseDyn);
+    } else {
+        if (totalPauseDyn > pauseOfferteVal) {
+            totalMinutes -= (totalPauseDyn - pauseOfferteVal);
+        }
     }
     return (totalMinutes / 60).toFixed(2);
 }
 
 // Variante qui permet de forcer une valeur de pause offerte (utile pour le mode RHT)
-function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres, pauseOfferteMinutes, ignoreMidiMin = false) {
+function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres, pauseOfferteMinutes, ignoreMidiMin = false, dateStr = null) {
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return 0;
         const [hh, mm] = h.split(':').map(Number);
@@ -658,12 +663,16 @@ function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pa
             }
         });
     }
-    // Seul l'excédent > pause offerte est déduit (pause offerte surchargée si fournie)
     const pauseOff = (typeof pauseOfferteMinutes === 'number' && !isNaN(pauseOfferteMinutes))
         ? pauseOfferteMinutes
         : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
-    if (totalPauseDyn > pauseOff) {
-        totalMinutes -= (totalPauseDyn - pauseOff);
+    const anneeCalcAvec = dateStr ? parseInt(dateStr.substring(0, 4)) : currentYear;
+    if (anneeCalcAvec >= 2026) {
+        totalMinutes += (pauseOff - totalPauseDyn);
+    } else {
+        if (totalPauseDyn > pauseOff) {
+            totalMinutes -= (totalPauseDyn - pauseOff);
+        }
     }
     return (totalMinutes / 60).toFixed(2);
 }
@@ -695,7 +704,8 @@ function getHeuresTravailleesPourGraph(dateStr) {
                 pausesAvant,
                 pausesApres,
                 pauseOffEff,
-                true
+                true,
+                dateStr
             )) || 0;
         }
         return parseFloat(calculerHeures(
@@ -704,7 +714,8 @@ function getHeuresTravailleesPourGraph(dateStr) {
             jour.pauseDejFin,
             jour.depart,
             pausesAvant,
-            pausesApres
+            pausesApres,
+            dateStr
         )) || 0;
     } catch (error) {
         console.warn('Erreur lors du calcul du graphique pour', dateStr, error);
@@ -1614,10 +1625,11 @@ function afficherJours() {
                     jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
                     jour.pausesAvant, jour.pausesApres,
                     pauseOffEff,
-                    true
+                    true,
+                    jour.date
                 ));
             } else {
-                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date));
             }
         }
         
@@ -1825,10 +1837,11 @@ function afficherJours() {
                     jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
                     jour.pausesAvant, jour.pausesApres,
                     pauseOffEff,
-                    true
+                    true,
+                    jour.date
                 ));
             } else {
-                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date));
             }
         }
 
@@ -1919,8 +1932,8 @@ form.addEventListener('submit', function(e) {
         depart,
         pausesAvant: JSON.parse(JSON.stringify(pausesAvant)),
         pausesApres: pausesApresData,
-        heuresTravaillees: parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData)),
-        ecart: calculerEcart(parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData)), heuresJour)
+        heuresTravaillees: parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData, date)),
+        ecart: calculerEcart(parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData, date)), heuresJour)
     };
     const index = jours.findIndex(j => j.date === date);
     if (index !== -1) {
@@ -3157,7 +3170,9 @@ function updateCalculateur() {
         departMins = arriveeMins + travailMins + pauseMins;
         // Total des pauses (matin + pauses supplémentaires incluant après-midi)
         const totalPauses = pause1Mins + pauseSup;
-        if (totalPauses > pauseOfferteVal) {
+        if (currentYear >= 2026) {
+            departMins += (totalPauses - pauseOfferteVal);
+        } else if (totalPauses > pauseOfferteVal) {
             departMins += (totalPauses - pauseOfferteVal);
         }
         departMinsAvantClamp = departMins;
@@ -3169,7 +3184,9 @@ function updateCalculateur() {
         checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
         // Total des pauses (matin + pauses supplémentaires incluant après-midi)
         const totalPauses = pause1Mins + pauseSup;
-        if (totalPauses > pauseOfferteVal) {
+        if (currentYear >= 2026) {
+            departMins -= (totalPauses - pauseOfferteVal);
+        } else if (totalPauses > pauseOfferteVal) {
             departMins -= (totalPauses - pauseOfferteVal);
         }
         arriveeMins = departMins - travailMins - pauseMins;
@@ -3191,7 +3208,9 @@ function updateCalculateur() {
             departMins = arriveeMins + travailMins + pauseMins;
             // Total des pauses (matin + pauses supplémentaires incluant après-midi)
             const totalPauses = pause1Mins + pauseSup;
-            if (totalPauses > pauseOfferteVal) {
+            if (currentYear >= 2026) {
+                departMins += (totalPauses - pauseOfferteVal);
+            } else if (totalPauses > pauseOfferteVal) {
                 departMins += (totalPauses - pauseOfferteVal);
             }
             departMinsAvantClamp = departMins;
@@ -3202,7 +3221,9 @@ function updateCalculateur() {
             checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
             // Total des pauses (matin + pauses supplémentaires incluant après-midi)
             const totalPauses = pause1Mins + pauseSup;
-            if (totalPauses > pauseOfferteVal) {
+            if (currentYear >= 2026) {
+                departMins -= (totalPauses - pauseOfferteVal);
+            } else if (totalPauses > pauseOfferteVal) {
                 departMins -= (totalPauses - pauseOfferteVal);
             }
             arriveeMins = departMins - travailMins - pauseMins;
@@ -3389,8 +3410,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 jours = jours.map(jour => {
                     return {
                         ...jour,
-                        heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)),
-                        ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)), heuresJour)
+                        heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)),
+                        ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)), heuresJour)
                     };
                 });
                 localStorage.setItem('jours', JSON.stringify(jours));
@@ -3681,14 +3702,15 @@ function calculerHeuresSupZero() {
     }
     // Total des pauses (matin + après-midi)
     const totalPauses = pause1DureeMin + pauseApresDureeMin;
-    if (totalPauses > pauseOfferteVal) {
+    if (currentYear >= 2026) {
+        dureeTravail += (pauseOfferteVal - totalPauses);
+    } else if (totalPauses > pauseOfferteVal) {
         dureeTravail -= (totalPauses - pauseOfferteVal);
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
-    
 
-    
+
     // Conversion en HH:MM
     let totalMinutes = Math.round(heuresSup * 60);
     let signe = totalMinutes >= 0 ? '+' : '-';
@@ -3839,7 +3861,9 @@ function calculerHeuresSupCalculette() {
     // Note: pauseSup inclut déjà pause2 + pause après-midi via getPauseSupMinutes()
     const pauseSup = getPauseSupMinutes();
     const totalPauses = pause1DureeMin + pauseSup;
-    if (totalPauses > pauseOfferteVal) {
+    if (currentYear >= 2026) {
+        dureeTravail += (pauseOfferteVal - totalPauses);
+    } else if (totalPauses > pauseOfferteVal) {
         dureeTravail -= (totalPauses - pauseOfferteVal);
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
