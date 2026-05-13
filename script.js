@@ -1806,7 +1806,7 @@ function afficherJours() {
     const totalEcartDiv = document.getElementById('total-ecart');
     const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
 
-    let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${ecartVersHHMM(totalEcart)} (${(totalEcart >= 0 ? '+' : '') + totalEcart.toFixed(2).replace('.', ',')})</span>`;
+    let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${ecartVersHHMM(totalEcart)} <span style="font-size:calc(1em - 2pt)">(${(totalEcart >= 0 ? '+' : '') + totalEcart.toFixed(2).replace('.', ',')})</span></span>`;
 
     // Afficher le détail RHT uniquement si le mois contient des jours en période RHT
     if (aDesJoursRHT) {
@@ -1876,7 +1876,7 @@ function afficherJours() {
     // Ajout du paramètre heuresSupplementaires
     totalEcartAnnee += heuresSupplementaires;
     const totalClassAnnee = totalEcartAnnee >= 0 ? 'ecart-positif' : 'ecart-negatif';
-    totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${ecartVersHHMM(totalEcartAnnee)} (${(totalEcartAnnee >= 0 ? '+' : '') + totalEcartAnnee.toFixed(2).replace('.', ',')})</span>`;
+    totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${ecartVersHHMM(totalEcartAnnee)} <span style="font-size:calc(1em - 2pt)">(${(totalEcartAnnee >= 0 ? '+' : '') + totalEcartAnnee.toFixed(2).replace('.', ',')})</span></span>`;
     // Afficher le détail RHT annuel si présent
     if (totalEcreteAnneeRHT > 0 || totalSuppAnneeRHT > 0) {
         let htmlRHTAnnee = `<br/><span style="font-size:0.92em;color:#8e24aa;">`;
