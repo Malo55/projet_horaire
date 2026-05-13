@@ -1579,6 +1579,14 @@ function calculerEcart(heuresTravaillees, heuresJour) {
     return (ecart >= 0 ? '+' : '') + ecart.toFixed(2);
 }
 
+function ecartVersHHMM(valeur) {
+    const signe = valeur < 0 ? '-' : '+';
+    const absVal = Math.abs(valeur);
+    const h = Math.floor(absVal);
+    const m = Math.round((absVal - h) * 60);
+    return `${signe}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 // Fonction pour formater la date au format JJ.MM.YYYY
 function formaterDate(dateStr) {
     const [annee, mois, jour] = dateStr.split('-');
@@ -1798,7 +1806,7 @@ function afficherJours() {
     const totalEcartDiv = document.getElementById('total-ecart');
     const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
 
-    let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
+    let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${ecartVersHHMM(totalEcart)} (${(totalEcart >= 0 ? '+' : '') + totalEcart.toFixed(2).replace('.', ',')})</span>`;
 
     // Afficher le détail RHT uniquement si le mois contient des jours en période RHT
     if (aDesJoursRHT) {
@@ -1868,7 +1876,7 @@ function afficherJours() {
     // Ajout du paramètre heuresSupplementaires
     totalEcartAnnee += heuresSupplementaires;
     const totalClassAnnee = totalEcartAnnee >= 0 ? 'ecart-positif' : 'ecart-negatif';
-    totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${totalEcartAnnee >= 0 ? '+' : ''}${totalEcartAnnee.toFixed(2)}</span>`;
+    totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${ecartVersHHMM(totalEcartAnnee)} (${(totalEcartAnnee >= 0 ? '+' : '') + totalEcartAnnee.toFixed(2).replace('.', ',')})</span>`;
     // Afficher le détail RHT annuel si présent
     if (totalEcreteAnneeRHT > 0 || totalSuppAnneeRHT > 0) {
         let htmlRHTAnnee = `<br/><span style="font-size:0.92em;color:#8e24aa;">`;
