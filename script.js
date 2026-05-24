@@ -13,6 +13,22 @@ const heuresJourInput = document.getElementById('heures-jour');
 const heuresJourHHMM = document.getElementById('heures-jour-hhmm');
 const pauseOfferteInput = document.getElementById('pause-offerte-min');
 
+// Année/mois courant (définis tôt pour être utilisés par getParam/setParam)
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+
+// --- Helpers localStorage par année ---
+// getParam lit d'abord la clé année (ex: heuresJour_2026), puis la clé legacy sans suffixe
+function getParam(cle, defaut = null) {
+    const v = localStorage.getItem(`${cle}_${currentYear}`);
+    if (v !== null) return v;
+    const legacy = localStorage.getItem(cle);
+    return legacy !== null ? legacy : defaut;
+}
+function setParam(cle, val) {
+    localStorage.setItem(`${cle}_${currentYear}`, val != null ? String(val) : '');
+}
+
 // Récupération ou initialisation des données
 let jours = JSON.parse(localStorage.getItem('jours')) || [];
 let joursVacances = JSON.parse(localStorage.getItem('joursVacances')) || [];
@@ -20,11 +36,11 @@ let joursRTT = JSON.parse(localStorage.getItem('joursRTT')) || [];
 let joursRHT = JSON.parse(localStorage.getItem('joursRHT')) || [];
 let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
 let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
-let heuresJour = parseFloat(localStorage.getItem('heuresJour')) || 7.5;
-let pauseOfferte = parseInt(localStorage.getItem('pauseOfferte')) || 15;
+let heuresJour = parseFloat(getParam('heuresJour')) || 7.5;
+let pauseOfferte = parseInt(getParam('pauseOfferte')) || 15;
 
 // Gestion des jours de travail
-let joursTravail = JSON.parse(localStorage.getItem('joursTravail')) || {
+let joursTravail = JSON.parse(getParam('joursTravail')) || {
     lundi: true,
     mardi: true,
     mercredi: true,
@@ -35,7 +51,10 @@ let joursTravail = JSON.parse(localStorage.getItem('joursTravail')) || {
 };
 
 // Gestion des heures supplémentaires
-let heuresSupplementaires = parseFloat(localStorage.getItem('heuresSupplementaires')) || 0;
+let heuresSupplementaires = parseFloat(getParam('heuresSupplementaires')) || 0;
+
+// Durée minimale pause midi (globale pour mise à jour lors changement d'année)
+let pauseMidiMin = parseInt(getParam('pauseMidiMin')) || 30;
 let graphiqueHeuresChart = null;
 let graphiqueHeuresMode = 'heures';
 let graphiquePeriodeMode = 'annee';
@@ -43,7 +62,7 @@ let graphiquePeriodeMode = 'annee';
 const IMPOT_TABLE_KEY = 'impotTableData';
 let tableauImpots = [];
 try {
-    const storedImpots = localStorage.getItem(IMPOT_TABLE_KEY);
+    const storedImpots = getParam(IMPOT_TABLE_KEY);
     if (storedImpots) {
         const parsed = JSON.parse(storedImpots);
         if (Array.isArray(parsed)) {
@@ -78,7 +97,7 @@ function getImpotTable() {
 function saveImpotTable(data) {
     tableauImpots = Array.isArray(data) ? data : [];
     try {
-        localStorage.setItem(IMPOT_TABLE_KEY, JSON.stringify(tableauImpots));
+        setParam(IMPOT_TABLE_KEY, JSON.stringify(tableauImpots));
     } catch (err) {
         console.warn('Impossible de sauvegarder le tableau d\'impôt', err);
     }
@@ -196,13 +215,13 @@ if (pauseOfferteInput) {
     pauseOfferteInput.value = pauseOfferte;
     pauseOfferteInput.addEventListener('input', function() {
         pauseOfferte = parseInt(pauseOfferteInput.value) || 0;
-        localStorage.setItem('pauseOfferte', pauseOfferte);
+        setParam('pauseOfferte', pauseOfferte);
         // Recalculer tous les écarts
         jours = jours.map(jour => {
             return {
                 ...jour,
-                heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)),
-                ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)), heuresJour)
+                heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)),
+                ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)), heuresJour)
             };
         });
         localStorage.setItem('jours', JSON.stringify(jours));
@@ -210,8 +229,7 @@ if (pauseOfferteInput) {
         updateCalculateur();
     });
 } else {
-    // Si le champ n'est pas encore dans le DOM, on s'assure que la valeur est bien prise en compte
-    pauseOfferte = parseInt(localStorage.getItem('pauseOfferte')) || 15;
+    pauseOfferte = parseInt(getParam('pauseOfferte')) || 15;
 }
 
 // Gestion des heures supplémentaires
@@ -220,18 +238,15 @@ if (heuresSupplementairesInput) {
     heuresSupplementairesInput.value = heuresSupplementaires;
     heuresSupplementairesInput.addEventListener('input', function() {
         heuresSupplementaires = parseFloat(heuresSupplementairesInput.value) || 0;
-        localStorage.setItem('heuresSupplementaires', heuresSupplementaires);
+        setParam('heuresSupplementaires', heuresSupplementaires);
         afficherJours();
     });
 } else {
-    // Si le champ n'est pas encore dans le DOM, on s'assure que la valeur est bien prise en compte
-    heuresSupplementaires = parseFloat(localStorage.getItem('heuresSupplementaires')) || 0;
+    heuresSupplementaires = parseFloat(getParam('heuresSupplementaires')) || 0;
 }
 
 // --- Calendrier interactif ---
 const calendrierDiv = document.getElementById('calendrier');
-let currentMonth = new Date().getMonth();
-let currentYear = new Date().getFullYear();
 let selectedDate = null;
 
 // --- Gestion du modal de saisie ---
@@ -267,7 +282,7 @@ function initialiserJoursTravail() {
             checkbox.checked = joursTravail[jour];
             checkbox.addEventListener('change', function() {
                 joursTravail[jour] = this.checked;
-                localStorage.setItem('joursTravail', JSON.stringify(joursTravail));
+                setParam('joursTravail', JSON.stringify(joursTravail));
                 afficherJours(); // Mettre à jour le tableau et le total
                 majCalendrier(); // Mettre à jour le calendrier
             });
@@ -291,7 +306,7 @@ function renderCalendrier(month, year) {
     prevYearBtn.style.width = '32px';
     prevYearBtn.style.minWidth = '32px';
     prevYearBtn.style.marginRight = '8px';
-    prevYearBtn.onclick = () => { currentYear--; majCalendrier(); };
+    prevYearBtn.onclick = () => { currentYear--; chargerParametresAnnee(currentYear); };
     const anneeSpan = document.createElement('span');
     anneeSpan.textContent = year;
     anneeSpan.style.margin = '0 22px';
@@ -304,7 +319,7 @@ function renderCalendrier(month, year) {
     nextYearBtn.style.width = '32px';
     nextYearBtn.style.minWidth = '32px';
     nextYearBtn.style.marginLeft = '8px';
-    nextYearBtn.onclick = () => { currentYear++; majCalendrier(); };
+    nextYearBtn.onclick = () => { currentYear++; chargerParametresAnnee(currentYear); };
     anneeDiv.appendChild(prevYearBtn);
     anneeDiv.appendChild(anneeSpan);
     anneeDiv.appendChild(nextYearBtn);
@@ -319,7 +334,7 @@ function renderCalendrier(month, year) {
     prevMonthBtn.style.width = '32px';
     prevMonthBtn.style.minWidth = '32px';
     prevMonthBtn.style.marginRight = '8px';
-    prevMonthBtn.onclick = () => { currentMonth--; if(currentMonth < 0){ currentMonth=11; currentYear--; } majCalendrier(); };
+    prevMonthBtn.onclick = () => { currentMonth--; if(currentMonth < 0){ currentMonth=11; currentYear--; chargerParametresAnnee(currentYear); } else { majCalendrier(); } };
     const moisSpan = document.createElement('span');
     moisSpan.textContent = mois[month];
     moisSpan.style.margin = '0 22px';
@@ -332,7 +347,7 @@ function renderCalendrier(month, year) {
     nextMonthBtn.style.width = '32px';
     nextMonthBtn.style.minWidth = '32px';
     nextMonthBtn.style.marginLeft = '8px';
-    nextMonthBtn.onclick = () => { currentMonth++; if(currentMonth > 11){ currentMonth=0; currentYear++; } majCalendrier(); };
+    nextMonthBtn.onclick = () => { currentMonth++; if(currentMonth > 11){ currentMonth=0; currentYear++; chargerParametresAnnee(currentYear); } else { majCalendrier(); } };
     moisDiv.appendChild(prevMonthBtn);
     moisDiv.appendChild(moisSpan);
     moisDiv.appendChild(nextMonthBtn);
@@ -441,6 +456,107 @@ function majCalendrier() {
     afficherJours(); // Ajouté pour mettre à jour l'affichage des jours saisis lors du changement de mois/année
 }
 
+// Charge tous les paramètres d'une année depuis le localStorage et met à jour l'interface
+function chargerParametresAnnee(annee) {
+    // Recharger les variables globales depuis le localStorage de la nouvelle année
+    heuresJour = parseFloat(getParam('heuresJour')) || 7.5;
+    pauseOfferte = parseInt(getParam('pauseOfferte')) || 15;
+    heuresSupplementaires = parseFloat(getParam('heuresSupplementaires')) || 0;
+    pauseMidiMin = parseInt(getParam('pauseMidiMin')) || 30;
+
+    try {
+        joursTravail = JSON.parse(getParam('joursTravail')) || {
+            lundi: true, mardi: true, mercredi: true, jeudi: true,
+            vendredi: true, samedi: false, dimanche: false
+        };
+    } catch(e) {
+        joursTravail = { lundi: true, mardi: true, mercredi: true, jeudi: true, vendredi: true, samedi: false, dimanche: false };
+    }
+
+    plageArriveeMin = parseInt(getParam('plageArriveeMin')) || 480;
+    plageArriveeMax = parseInt(getParam('plageArriveeMax')) || 600;
+    plageMidiMin = parseInt(getParam('plageMidiMin')) || 720;
+    plageMidiMax = parseInt(getParam('plageMidiMax')) || 840;
+    plageDepartMin = parseInt(getParam('plageDepartMin')) || 945;
+    plageDepartMax = parseInt(getParam('plageDepartMax')) || 1080;
+
+    try {
+        const impotStr = getParam(IMPOT_TABLE_KEY);
+        tableauImpots = impotStr ? JSON.parse(impotStr) : [];
+    } catch(e) { tableauImpots = []; }
+
+    // Mettre à jour les inputs DOM des plages horaires (toujours visibles dans le modal)
+    if (plageArriveeMinInput) plageArriveeMinInput.value = toHHMM(plageArriveeMin);
+    if (plageArriveeMaxInput) plageArriveeMaxInput.value = toHHMM(plageArriveeMax);
+    if (plageMidiMinInput) plageMidiMinInput.value = toHHMM(plageMidiMin);
+    if (plageMidiMaxInput) plageMidiMaxInput.value = toHHMM(plageMidiMax);
+    if (plageDepartMinInput) plageDepartMinInput.value = toHHMM(plageDepartMin);
+    if (plageDepartMaxInput) plageDepartMaxInput.value = toHHMM(plageDepartMax);
+
+    // Mettre à jour les champs du modal Général
+    const paramHeuresJour = document.getElementById('param-heures-jour');
+    const paramHeuresJourHHMM = document.getElementById('param-heures-jour-hhmm');
+    const paramPauseOfferte = document.getElementById('param-pause-offerte');
+    const paramHeuresSuppl = document.getElementById('param-heures-supplementaires');
+    const paramPauseMidiMin = document.getElementById('param-pause-midi-min');
+    if (paramHeuresJour) paramHeuresJour.value = heuresJour.toFixed(2);
+    if (paramHeuresJourHHMM) paramHeuresJourHHMM.value = fractionToHHMM(heuresJour);
+    if (paramPauseOfferte) paramPauseOfferte.value = pauseOfferte;
+    if (paramHeuresSuppl) paramHeuresSuppl.value = heuresSupplementaires;
+    if (paramPauseMidiMin) paramPauseMidiMin.value = pauseMidiMin;
+
+    // Mettre à jour les cases à cocher des jours de travail
+    Object.keys(joursTravail).forEach(jour => {
+        const cb1 = document.getElementById(`jour-${jour}`);
+        if (cb1) cb1.checked = joursTravail[jour];
+        const cb2 = document.getElementById(`param-jour-${jour}`);
+        if (cb2) cb2.checked = joursTravail[jour];
+    });
+
+    // Mettre à jour les champs RHT du modal
+    const rhtPhase1Enabled = document.getElementById('param-rht-phase1-enabled');
+    const rhtPhase1Debut = document.getElementById('param-rht-phase1-debut');
+    const rhtPhase1Fin = document.getElementById('param-rht-phase1-fin');
+    const rhtEnabled = document.getElementById('param-rht-enabled');
+    const rhtDebut = document.getElementById('param-rht-debut');
+    const rhtFin = document.getElementById('param-rht-fin');
+    const rhtHeuresDec = document.getElementById('param-rht-heures-jour-dec');
+    const rhtHeuresHHMM = document.getElementById('param-rht-heures-jour-hhmm');
+    const rhtPauseOfferte = document.getElementById('param-rht-pause-offerte');
+    if (rhtPhase1Enabled) rhtPhase1Enabled.checked = getParam('param-rht-phase1-enabled') === 'true';
+    if (rhtPhase1Debut) rhtPhase1Debut.value = getParam('param-rht-phase1-debut') || '';
+    if (rhtPhase1Fin) rhtPhase1Fin.value = getParam('param-rht-phase1-fin') || '';
+    if (rhtEnabled) rhtEnabled.checked = getParam('rht_enabled') === 'true';
+    if (rhtDebut) rhtDebut.value = getParam('rht_debut') || '';
+    if (rhtFin) rhtFin.value = getParam('rht_fin') || '';
+    if (rhtHeuresDec) rhtHeuresDec.value = getParam('rht_heures_dec') || '';
+    if (rhtHeuresHHMM) rhtHeuresHHMM.value = getParam('rht_heures_hhmm') || '';
+    if (rhtPauseOfferte) rhtPauseOfferte.value = getParam('rht_pause_offerte') || '';
+
+    // Mettre à jour l'indicateur d'année dans le modal
+    const anneeLabel = document.getElementById('param-annee-label');
+    if (anneeLabel) anneeLabel.textContent = annee;
+
+    // Rafraîchir les périodes RHT affichées
+    if (typeof afficherPeriodesRHT === 'function') {
+        afficherPeriodesRHT('phase1');
+        afficherPeriodesRHT('phase2');
+    }
+
+    // Recalculer les écarts avec les nouvelles heures/jour
+    jours = jours.map(jour => ({
+        ...jour,
+        ecart: calculerEcart(parseFloat(jour.heuresTravaillees), heuresJour)
+    }));
+
+    // Mettre à jour les plages RHT globales et rafraîchir l'affichage
+    if (typeof mettreAJourPlagesRHTGlobales === 'function') mettreAJourPlagesRHTGlobales();
+    if (typeof initialiserAffichageModulesRHT === 'function') initialiserAffichageModulesRHT();
+    if (typeof updateCompteursAbsences === 'function') updateCompteursAbsences();
+
+    majCalendrier();
+}
+
 // Quand on change la date dans le formulaire, on sélectionne le jour dans le calendrier
 form.date.addEventListener('change', function() {
     selectedDate = form.date.value;
@@ -453,7 +569,7 @@ majCalendrier();
 // --- Correction de la prise en compte du temps minimal de pause midi dans tous les calculs ---
 
 // Fonction pour calculer les heures travaillées (nouvelle version avec pauses dynamiques)
-function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres) {
+function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres, dateStr = null) {
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return 0;
         const [hh, mm] = h.split(':').map(Number);
@@ -492,16 +608,21 @@ function calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant
             }
         });
     }
-    // Seul l'excédent > pause offerte est déduit
     let pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
-    if (totalPauseDyn > pauseOfferteVal) {
-        totalMinutes -= (totalPauseDyn - pauseOfferteVal);
+    const anneeCalc = dateStr ? parseInt(dateStr.substring(0, 4)) : currentYear;
+    if (anneeCalc >= 2026) {
+        // Pause non consommée créditée en heures sup ; excédent déduit
+        totalMinutes += (pauseOfferteVal - totalPauseDyn);
+    } else {
+        if (totalPauseDyn > pauseOfferteVal) {
+            totalMinutes -= (totalPauseDyn - pauseOfferteVal);
+        }
     }
     return (totalMinutes / 60).toFixed(2);
 }
 
 // Variante qui permet de forcer une valeur de pause offerte (utile pour le mode RHT)
-function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres, pauseOfferteMinutes, ignoreMidiMin = false) {
+function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApres, pauseOfferteMinutes, ignoreMidiMin = false, dateStr = null) {
     const toMinutes = (h) => {
         if (!h || !/^\d{2}:\d{2}$/.test(h)) return 0;
         const [hh, mm] = h.split(':').map(Number);
@@ -542,12 +663,16 @@ function calculerHeuresAvecPause(arrivee, pauseDejDebut, pauseDejFin, depart, pa
             }
         });
     }
-    // Seul l'excédent > pause offerte est déduit (pause offerte surchargée si fournie)
     const pauseOff = (typeof pauseOfferteMinutes === 'number' && !isNaN(pauseOfferteMinutes))
         ? pauseOfferteMinutes
         : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
-    if (totalPauseDyn > pauseOff) {
-        totalMinutes -= (totalPauseDyn - pauseOff);
+    const anneeCalcAvec = dateStr ? parseInt(dateStr.substring(0, 4)) : currentYear;
+    if (anneeCalcAvec >= 2026) {
+        totalMinutes += (pauseOff - totalPauseDyn);
+    } else {
+        if (totalPauseDyn > pauseOff) {
+            totalMinutes -= (totalPauseDyn - pauseOff);
+        }
     }
     return (totalMinutes / 60).toFixed(2);
 }
@@ -579,7 +704,8 @@ function getHeuresTravailleesPourGraph(dateStr) {
                 pausesAvant,
                 pausesApres,
                 pauseOffEff,
-                true
+                true,
+                dateStr
             )) || 0;
         }
         return parseFloat(calculerHeures(
@@ -588,7 +714,8 @@ function getHeuresTravailleesPourGraph(dateStr) {
             jour.pauseDejFin,
             jour.depart,
             pausesAvant,
-            pausesApres
+            pausesApres,
+            dateStr
         )) || 0;
     } catch (error) {
         console.warn('Erreur lors du calcul du graphique pour', dateStr, error);
@@ -1253,28 +1380,28 @@ function initialiserParametresSalaire() {
 
     if (!nbJoursInput || !nbMoisInput || !salaireMensuelInput || !lamalMoisInput) return;
 
-    // Charger les valeurs depuis le localStorage
-    nbJoursInput.value = localStorage.getItem('salaireNbJours') || '';
-    nbMoisInput.value = localStorage.getItem('salaireNbMois') || '';
-    salaireMensuelInput.value = localStorage.getItem('salaireMensuelBrut') || '';
-    lamalMoisInput.value = localStorage.getItem('salaireLamalMois') || '';
+    // Charger les valeurs depuis le localStorage (avec fallback legacy)
+    nbJoursInput.value = getParam('salaireNbJours') || '';
+    nbMoisInput.value = getParam('salaireNbMois') || '';
+    salaireMensuelInput.value = getParam('salaireMensuelBrut') || '';
+    lamalMoisInput.value = getParam('salaireLamalMois') || '';
 
     function sauver() {
-        localStorage.setItem('salaireNbJours', nbJoursInput.value || '');
-        localStorage.setItem('salaireNbMois', nbMoisInput.value || '');
-        localStorage.setItem('salaireMensuelBrut', salaireMensuelInput.value || '');
-        localStorage.setItem('salaireLamalMois', lamalMoisInput.value || '');
+        setParam('salaireNbJours', nbJoursInput.value || '');
+        setParam('salaireNbMois', nbMoisInput.value || '');
+        setParam('salaireMensuelBrut', salaireMensuelInput.value || '');
+        setParam('salaireLamalMois', lamalMoisInput.value || '');
     }
 
     function sauverSimulation() {
-        if (simulationRhtPercentInput) localStorage.setItem('simulationRhtPercent', simulationRhtPercentInput.value || '');
-        if (simulationRhtNombreInput) localStorage.setItem('simulationRhtNombre', simulationRhtNombreInput.value || '');
-        if (simulationAvsPercentInput) localStorage.setItem('simulationAvsPercent', simulationAvsPercentInput.value || '');
-        if (simulationLaaPercentInput) localStorage.setItem('simulationLaaPercent', simulationLaaPercentInput.value || '');
-        if (simulationChomagePercentInput) localStorage.setItem('simulationChomagePercent', simulationChomagePercentInput.value || '');
-        if (simulationApgPercentInput) localStorage.setItem('simulationApgPercent', simulationApgPercentInput.value || '');
-        if (simulationLppMontantInput) localStorage.setItem('simulationLppMontant', simulationLppMontantInput.value || '');
-        if (simulationImpotPercentInput) localStorage.setItem('simulationImpotPercent', simulationImpotPercentInput.value || '');
+        if (simulationRhtPercentInput) setParam('simulationRhtPercent', simulationRhtPercentInput.value || '');
+        if (simulationRhtNombreInput) setParam('simulationRhtNombre', simulationRhtNombreInput.value || '');
+        if (simulationAvsPercentInput) setParam('simulationAvsPercent', simulationAvsPercentInput.value || '');
+        if (simulationLaaPercentInput) setParam('simulationLaaPercent', simulationLaaPercentInput.value || '');
+        if (simulationChomagePercentInput) setParam('simulationChomagePercent', simulationChomagePercentInput.value || '');
+        if (simulationApgPercentInput) setParam('simulationApgPercent', simulationApgPercentInput.value || '');
+        if (simulationLppMontantInput) setParam('simulationLppMontant', simulationLppMontantInput.value || '');
+        if (simulationImpotPercentInput) setParam('simulationImpotPercent', simulationImpotPercentInput.value || '');
     }
 
     function recalculerSimulation() {
@@ -1347,14 +1474,14 @@ function initialiserParametresSalaire() {
         if (!simulationRhtPercentInput) return;
         if (!simulationRhtPercentInput || !simulationRhtNombreInput || !simulationAvsPercentInput || !simulationLaaPercentInput || !simulationChomagePercentInput || !simulationApgPercentInput || !simulationLppMontantInput || !simulationImpotPercentInput) return;
 
-        simulationRhtPercentInput.value = localStorage.getItem('simulationRhtPercent') ?? '0';
-        simulationRhtNombreInput.value = localStorage.getItem('simulationRhtNombre') ?? '0';
-        simulationAvsPercentInput.value = localStorage.getItem('simulationAvsPercent') ?? '5.30';
-        simulationLaaPercentInput.value = localStorage.getItem('simulationLaaPercent') ?? '0.85';
-        simulationChomagePercentInput.value = localStorage.getItem('simulationChomagePercent') ?? '1.1';
-        simulationApgPercentInput.value = localStorage.getItem('simulationApgPercent') ?? '1.068';
-        simulationLppMontantInput.value = localStorage.getItem('simulationLppMontant') ?? '230.45';
-        simulationImpotPercentInput.value = localStorage.getItem('simulationImpotPercent') ?? '13.37';
+        simulationRhtPercentInput.value = getParam('simulationRhtPercent') ?? '0';
+        simulationRhtNombreInput.value = getParam('simulationRhtNombre') ?? '0';
+        simulationAvsPercentInput.value = getParam('simulationAvsPercent') ?? '5.30';
+        simulationLaaPercentInput.value = getParam('simulationLaaPercent') ?? '0.85';
+        simulationChomagePercentInput.value = getParam('simulationChomagePercent') ?? '1.1';
+        simulationApgPercentInput.value = getParam('simulationApgPercent') ?? '1.068';
+        simulationLppMontantInput.value = getParam('simulationLppMontant') ?? '230.45';
+        simulationImpotPercentInput.value = getParam('simulationImpotPercent') ?? '13.37';
 
         ['input', 'change'].forEach(evt => {
             [
@@ -1379,7 +1506,7 @@ function initialiserParametresSalaire() {
 
     function recalculer() {
         // Heures/jour depuis la config globale
-        const hJour = Number.isFinite(heuresJour) ? heuresJour : parseFloat(localStorage.getItem('heuresJour')) || 0;
+        const hJour = Number.isFinite(heuresJour) ? heuresJour : parseFloat(getParam('heuresJour')) || 0;
         if (heuresJourSpan) heuresJourSpan.textContent = formatDecimalFr(hJour);
 
         const nbJours = toNumberFromInput(nbJoursInput.value);
@@ -1452,6 +1579,14 @@ function calculerEcart(heuresTravaillees, heuresJour) {
     return (ecart >= 0 ? '+' : '') + ecart.toFixed(2);
 }
 
+function ecartVersHHMM(valeur) {
+    const signe = valeur < 0 ? '-' : '+';
+    const absVal = Math.abs(valeur);
+    const h = Math.floor(absVal);
+    const m = Math.round((absVal - h) * 60);
+    return `${signe}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 // Fonction pour formater la date au format JJ.MM.YYYY
 function formaterDate(dateStr) {
     const [annee, mois, jour] = dateStr.split('-');
@@ -1498,10 +1633,11 @@ function afficherJours() {
                     jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
                     jour.pausesAvant, jour.pausesApres,
                     pauseOffEff,
-                    true
+                    true,
+                    jour.date
                 ));
             } else {
-                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date));
             }
         }
         
@@ -1670,7 +1806,7 @@ function afficherJours() {
     const totalEcartDiv = document.getElementById('total-ecart');
     const totalClass = totalEcart >= 0 ? 'ecart-positif' : 'ecart-negatif';
 
-    let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${totalEcart >= 0 ? '+' : ''}${totalEcart.toFixed(2)}</span>`;
+    let htmlTotaux = `Total d'heure supplémentaire du mois : <span class="${totalClass}">${ecartVersHHMM(totalEcart)} <span style="font-size:calc(1em - 2pt)">(${(totalEcart >= 0 ? '+' : '') + totalEcart.toFixed(2).replace('.', ',')})</span></span>`;
 
     // Afficher le détail RHT uniquement si le mois contient des jours en période RHT
     if (aDesJoursRHT) {
@@ -1709,10 +1845,11 @@ function afficherJours() {
                     jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart,
                     jour.pausesAvant, jour.pausesApres,
                     pauseOffEff,
-                    true
+                    true,
+                    jour.date
                 ));
             } else {
-                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres));
+                heuresTravDyn = parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date));
             }
         }
 
@@ -1739,7 +1876,7 @@ function afficherJours() {
     // Ajout du paramètre heuresSupplementaires
     totalEcartAnnee += heuresSupplementaires;
     const totalClassAnnee = totalEcartAnnee >= 0 ? 'ecart-positif' : 'ecart-negatif';
-    totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${totalEcartAnnee >= 0 ? '+' : ''}${totalEcartAnnee.toFixed(2)}</span>`;
+    totalEcartDiv.innerHTML += `<br/>Total d'heure supplémentaire : <span class="${totalClassAnnee}">${ecartVersHHMM(totalEcartAnnee)} <span style="font-size:calc(1em - 2pt)">(${(totalEcartAnnee >= 0 ? '+' : '') + totalEcartAnnee.toFixed(2).replace('.', ',')})</span></span>`;
     // Afficher le détail RHT annuel si présent
     if (totalEcreteAnneeRHT > 0 || totalSuppAnneeRHT > 0) {
         let htmlRHTAnnee = `<br/><span style="font-size:0.92em;color:#8e24aa;">`;
@@ -1803,8 +1940,8 @@ form.addEventListener('submit', function(e) {
         depart,
         pausesAvant: JSON.parse(JSON.stringify(pausesAvant)),
         pausesApres: pausesApresData,
-        heuresTravaillees: parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData)),
-        ecart: calculerEcart(parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData)), heuresJour)
+        heuresTravaillees: parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData, date)),
+        ecart: calculerEcart(parseFloat(calculerHeures(arrivee, pauseDejDebut, pauseDejFin, depart, pausesAvant, pausesApresData, date)), heuresJour)
     };
     const index = jours.findIndex(j => j.date === date);
     if (index !== -1) {
@@ -1839,7 +1976,7 @@ if (heuresJourInput) {
         heuresJour = parseFloat(heuresJourInput.value) || 0;
         heuresJourInput.value = heuresJour.toFixed(2); // Limite à 2 décimales
         if (heuresJourHHMM) heuresJourHHMM.value = fractionToHHMM(heuresJour);
-        localStorage.setItem('heuresJour', heuresJour);
+        setParam('heuresJour', heuresJour);
         // Recalculer tous les écarts
         jours = jours.map(jour => {
             return {
@@ -1856,7 +1993,7 @@ if (heuresJourHHMM) {
     heuresJourHHMM.addEventListener('input', function() {
         heuresJour = hhmmToFraction(heuresJourHHMM.value);
         if (heuresJourInput) heuresJourInput.value = heuresJour.toFixed(2); // Limite à 2 décimales
-        localStorage.setItem('heuresJour', heuresJour);
+        setParam('heuresJour', heuresJour);
         // Recalculer tous les écarts
         jours = jours.map(jour => {
             return {
@@ -2851,29 +2988,29 @@ const rhtPlageArriveeMinInput = document.getElementById('rht-plage-arrivee-min')
 const rhtPlageArriveeMaxInput = document.getElementById('rht-plage-arrivee-max');
 const rhtPlageDepartMinInput = document.getElementById('rht-plage-depart-min');
 const rhtPlageDepartMaxInput = document.getElementById('rht-plage-depart-max');
-// Restauration depuis le localStorage
-if (localStorage.getItem('plageArriveeMin')) {
-    plageArriveeMin = parseInt(localStorage.getItem('plageArriveeMin'));
+// Restauration depuis le localStorage (avec fallback legacy)
+if (getParam('plageArriveeMin')) {
+    plageArriveeMin = parseInt(getParam('plageArriveeMin'));
     if (plageArriveeMinInput) plageArriveeMinInput.value = toHHMM(plageArriveeMin);
 }
-if (localStorage.getItem('plageArriveeMax')) {
-    plageArriveeMax = parseInt(localStorage.getItem('plageArriveeMax'));
+if (getParam('plageArriveeMax')) {
+    plageArriveeMax = parseInt(getParam('plageArriveeMax'));
     if (plageArriveeMaxInput) plageArriveeMaxInput.value = toHHMM(plageArriveeMax);
 }
-if (localStorage.getItem('plageMidiMin')) {
-    plageMidiMin = parseInt(localStorage.getItem('plageMidiMin'));
+if (getParam('plageMidiMin')) {
+    plageMidiMin = parseInt(getParam('plageMidiMin'));
     if (plageMidiMinInput) plageMidiMinInput.value = toHHMM(plageMidiMin);
 }
-if (localStorage.getItem('plageMidiMax')) {
-    plageMidiMax = parseInt(localStorage.getItem('plageMidiMax'));
+if (getParam('plageMidiMax')) {
+    plageMidiMax = parseInt(getParam('plageMidiMax'));
     if (plageMidiMaxInput) plageMidiMaxInput.value = toHHMM(plageMidiMax);
 }
-if (localStorage.getItem('plageDepartMin')) {
-    plageDepartMin = parseInt(localStorage.getItem('plageDepartMin'));
+if (getParam('plageDepartMin')) {
+    plageDepartMin = parseInt(getParam('plageDepartMin'));
     if (plageDepartMinInput) plageDepartMinInput.value = toHHMM(plageDepartMin);
 }
-if (localStorage.getItem('plageDepartMax')) {
-    plageDepartMax = parseInt(localStorage.getItem('plageDepartMax'));
+if (getParam('plageDepartMax')) {
+    plageDepartMax = parseInt(getParam('plageDepartMax'));
     if (plageDepartMaxInput) plageDepartMaxInput.value = toHHMM(plageDepartMax);
 }
 if (plageArriveeMinInput && plageArriveeMaxInput) {
@@ -2881,11 +3018,11 @@ if (plageArriveeMinInput && plageArriveeMaxInput) {
     plageArriveeMax = toMinutes(plageArriveeMaxInput.value);
     plageArriveeMinInput.addEventListener('input', function() {
         plageArriveeMin = toMinutes(this.value);
-        localStorage.setItem('plageArriveeMin', plageArriveeMin);
+        setParam('plageArriveeMin', plageArriveeMin);
     });
     plageArriveeMaxInput.addEventListener('input', function() {
         plageArriveeMax = toMinutes(this.value);
-        localStorage.setItem('plageArriveeMax', plageArriveeMax);
+        setParam('plageArriveeMax', plageArriveeMax);
     });
 }
 if (plageMidiMinInput && plageMidiMaxInput) {
@@ -2893,11 +3030,11 @@ if (plageMidiMinInput && plageMidiMaxInput) {
     plageMidiMax = toMinutes(plageMidiMaxInput.value);
     plageMidiMinInput.addEventListener('input', function() {
         plageMidiMin = toMinutes(this.value);
-        localStorage.setItem('plageMidiMin', plageMidiMin);
+        setParam('plageMidiMin', plageMidiMin);
     });
     plageMidiMaxInput.addEventListener('input', function() {
         plageMidiMax = toMinutes(this.value);
-        localStorage.setItem('plageMidiMax', plageMidiMax);
+        setParam('plageMidiMax', plageMidiMax);
     });
 }
 if (plageDepartMinInput && plageDepartMaxInput) {
@@ -2905,11 +3042,11 @@ if (plageDepartMinInput && plageDepartMaxInput) {
     plageDepartMax = toMinutes(plageDepartMaxInput.value);
     plageDepartMinInput.addEventListener('input', function() {
         plageDepartMin = toMinutes(this.value);
-        localStorage.setItem('plageDepartMin', plageDepartMin);
+        setParam('plageDepartMin', plageDepartMin);
     });
     plageDepartMaxInput.addEventListener('input', function() {
         plageDepartMax = toMinutes(this.value);
-        localStorage.setItem('plageDepartMax', plageDepartMax);
+        setParam('plageDepartMax', plageDepartMax);
     });
 }
 // Restauration/écouteurs RHT avec formatage automatique
@@ -2926,11 +3063,11 @@ if (rhtPlageArriveeMinInput && rhtPlageArriveeMaxInput) {
     // Event listeners pour sauvegarder les valeurs
     rhtPlageArriveeMinInput.addEventListener('blur', function() {
         rhtPlageArriveeMin = toMinutes(this.value);
-        localStorage.setItem('rhtPlageArriveeMin', rhtPlageArriveeMin);
+        setParam('rhtPlageArriveeMin', rhtPlageArriveeMin);
     });
     rhtPlageArriveeMaxInput.addEventListener('blur', function() {
         rhtPlageArriveeMax = toMinutes(this.value);
-        localStorage.setItem('rhtPlageArriveeMax', rhtPlageArriveeMax);
+        setParam('rhtPlageArriveeMax', rhtPlageArriveeMax);
     });
 }
 if (rhtPlageDepartMinInput && rhtPlageDepartMaxInput) {
@@ -2946,11 +3083,11 @@ if (rhtPlageDepartMinInput && rhtPlageDepartMaxInput) {
     // Event listeners pour sauvegarder les valeurs
     rhtPlageDepartMinInput.addEventListener('blur', function() {
         rhtPlageDepartMin = toMinutes(this.value);
-        localStorage.setItem('rhtPlageDepartMin', rhtPlageDepartMin);
+        setParam('rhtPlageDepartMin', rhtPlageDepartMin);
     });
     rhtPlageDepartMaxInput.addEventListener('blur', function() {
         rhtPlageDepartMax = toMinutes(this.value);
-        localStorage.setItem('rhtPlageDepartMax', rhtPlageDepartMax);
+        setParam('rhtPlageDepartMax', rhtPlageDepartMax);
     });
 }
 function clampDepartMins(mins) {
@@ -3006,10 +3143,10 @@ function updateCalculateur() {
     
     if (calcRhtChecked) {
         // Mode RHT : utiliser les paramètres RHT
-        const rhtDecStr = localStorage.getItem('rht_heures_dec');
-        const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        const rhtDecStr = getParam('rht_heures_dec');
+        const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(getParam('heuresJour')) || 7.5);
         travailMins = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
-        const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+        const rhtPause = parseInt(getParam('rht_pause_offerte'));
         pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
     } else {
         // Mode normal : utiliser les paramètres généraux
@@ -3041,7 +3178,9 @@ function updateCalculateur() {
         departMins = arriveeMins + travailMins + pauseMins;
         // Total des pauses (matin + pauses supplémentaires incluant après-midi)
         const totalPauses = pause1Mins + pauseSup;
-        if (totalPauses > pauseOfferteVal) {
+        if (currentYear >= 2026) {
+            departMins += (totalPauses - pauseOfferteVal);
+        } else if (totalPauses > pauseOfferteVal) {
             departMins += (totalPauses - pauseOfferteVal);
         }
         departMinsAvantClamp = departMins;
@@ -3053,7 +3192,9 @@ function updateCalculateur() {
         checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
         // Total des pauses (matin + pauses supplémentaires incluant après-midi)
         const totalPauses = pause1Mins + pauseSup;
-        if (totalPauses > pauseOfferteVal) {
+        if (currentYear >= 2026) {
+            departMins -= (totalPauses - pauseOfferteVal);
+        } else if (totalPauses > pauseOfferteVal) {
             departMins -= (totalPauses - pauseOfferteVal);
         }
         arriveeMins = departMins - travailMins - pauseMins;
@@ -3075,7 +3216,9 @@ function updateCalculateur() {
             departMins = arriveeMins + travailMins + pauseMins;
             // Total des pauses (matin + pauses supplémentaires incluant après-midi)
             const totalPauses = pause1Mins + pauseSup;
-            if (totalPauses > pauseOfferteVal) {
+            if (currentYear >= 2026) {
+                departMins += (totalPauses - pauseOfferteVal);
+            } else if (totalPauses > pauseOfferteVal) {
                 departMins += (totalPauses - pauseOfferteVal);
             }
             departMinsAvantClamp = departMins;
@@ -3086,7 +3229,9 @@ function updateCalculateur() {
             checkPlage(calcDepart, departMins, calcRhtChecked ? rhtPlageDepartMin : plageDepartMin, calcRhtChecked ? rhtPlageDepartMax : plageDepartMax);
             // Total des pauses (matin + pauses supplémentaires incluant après-midi)
             const totalPauses = pause1Mins + pauseSup;
-            if (totalPauses > pauseOfferteVal) {
+            if (currentYear >= 2026) {
+                departMins -= (totalPauses - pauseOfferteVal);
+            } else if (totalPauses > pauseOfferteVal) {
                 departMins -= (totalPauses - pauseOfferteVal);
             }
             arriveeMins = departMins - travailMins - pauseMins;
@@ -3189,7 +3334,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 afficherPeriodesRHT('phase2');
                 afficherMessageChevauchement();
             }
-            
+
+            // Afficher l'année courante dans le modal
+            const anneeLabel = document.getElementById('param-annee-label');
+            if (anneeLabel) anneeLabel.textContent = currentYear;
+
             if (parametresModalBg) parametresModalBg.style.display = 'flex';
         });
 
@@ -3221,7 +3370,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const val = parseFloat(this.value) || 0;
                 paramHeuresJourHHMM.value = fractionToHHMM(val);
                 heuresJour = val;
-                localStorage.setItem('heuresJour', heuresJour);
+                setParam('heuresJour', heuresJour);
                 if (heuresJourInput) heuresJourInput.value = heuresJour.toFixed(2);
                 if (heuresJourHHMM) heuresJourHHMM.value = fractionToHHMM(heuresJour);
                 // Recalculer tous les écarts
@@ -3239,7 +3388,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const val = hhmmToFraction(this.value);
                 paramHeuresJour.value = val.toFixed(2);
                 heuresJour = val;
-                localStorage.setItem('heuresJour', heuresJour);
+                setParam('heuresJour', heuresJour);
                 if (heuresJourInput) heuresJourInput.value = heuresJour.toFixed(2);
                 if (heuresJourHHMM) heuresJourHHMM.value = fractionToHHMM(heuresJour);
                 // Recalculer tous les écarts
@@ -3260,21 +3409,21 @@ document.addEventListener('DOMContentLoaded', function() {
             safeAddEventListener('param-pause-offerte', 'input', function() {
                 const nouvelleValeur = parseInt(this.value) || 15;
                 pauseOfferte = nouvelleValeur;
-                localStorage.setItem('pauseOfferte', pauseOfferte);
-                
+                setParam('pauseOfferte', pauseOfferte);
+
                 // Mettre à jour l'interface
                 if (pauseOfferteInput) pauseOfferteInput.value = pauseOfferte;
-                
+
                 // Recalculer tous les écarts avec les bons paramètres (pausesAvant/pausesApres)
                 jours = jours.map(jour => {
                     return {
                         ...jour,
-                        heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)),
-                        ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres)), heuresJour)
+                        heuresTravaillees: parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)),
+                        ecart: calculerEcart(parseFloat(calculerHeures(jour.arrivee, jour.pauseDejDebut, jour.pauseDejFin, jour.depart, jour.pausesAvant, jour.pausesApres, jour.date)), heuresJour)
                     };
                 });
                 localStorage.setItem('jours', JSON.stringify(jours));
-                
+
                 // Mettre à jour l'affichage
                 afficherJours();
                 updateCalculateur();
@@ -3287,11 +3436,11 @@ document.addEventListener('DOMContentLoaded', function() {
             safeAddEventListener('param-heures-supplementaires', 'input', function() {
                 const nouvelleValeur = parseFloat(this.value) || 0;
                 heuresSupplementaires = nouvelleValeur;
-                localStorage.setItem('heuresSupplementaires', heuresSupplementaires);
-                
+                setParam('heuresSupplementaires', heuresSupplementaires);
+
                 // Mettre à jour l'interface
                 if (heuresSupplementairesInput) heuresSupplementairesInput.value = heuresSupplementaires;
-                
+
                 // Mettre à jour l'affichage
                 afficherJours();
             });
@@ -3303,8 +3452,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (checkbox) {
                 safeAddEventListener(`param-jour-${jour}`, 'change', function() {
                     joursTravail[jour] = this.checked;
-                    localStorage.setItem('joursTravail', JSON.stringify(joursTravail));
-                    
+                    setParam('joursTravail', JSON.stringify(joursTravail));
+
                     // Mettre à jour l'affichage
                     afficherJours();
                     majCalendrier();
@@ -3314,13 +3463,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- Gestion du paramètre temps minimal pause midi ---
-    let pauseMidiMin = parseInt(localStorage.getItem('pauseMidiMin')) || 30;
+    // pauseMidiMin est global (déclaré en haut du fichier), on le recharge ici depuis le DOM
     const paramPauseMidiMin = document.getElementById('param-pause-midi-min');
     if (paramPauseMidiMin) {
         paramPauseMidiMin.value = pauseMidiMin;
         safeAddEventListener('param-pause-midi-min', 'input', function() {
             pauseMidiMin = parseInt(this.value) || 0;
-            localStorage.setItem('pauseMidiMin', pauseMidiMin);
+            setParam('pauseMidiMin', pauseMidiMin);
         });
     }
     window.getPauseMidiMin = function() { return pauseMidiMin; };
@@ -3522,21 +3671,21 @@ function calculerHeuresSupZero() {
         if (isRhtPhase1) {
             // RHT phase 1 : utiliser les heures standard (pas de modification des horaires)
             const heuresJourInput = document.getElementById('heures-jour');
-            const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(getParam('heuresJour')) || 7.5);
             heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
             pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
         } else {
             // RHT phase 2 : utiliser les paramètres RHT
-            const rhtDecStr = localStorage.getItem('rht_heures_dec');
-            const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            const rhtDecStr = getParam('rht_heures_dec');
+            const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(getParam('heuresJour')) || 7.5);
             heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
-            const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+            const rhtPause = parseInt(getParam('rht_pause_offerte'));
             pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
         }
     } else {
         // Mode normal : utiliser les paramètres généraux
         const heuresJourInput = document.getElementById('heures-jour');
-        const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(getParam('heuresJour')) || 7.5);
         heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
         pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
     }
@@ -3561,14 +3710,15 @@ function calculerHeuresSupZero() {
     }
     // Total des pauses (matin + après-midi)
     const totalPauses = pause1DureeMin + pauseApresDureeMin;
-    if (totalPauses > pauseOfferteVal) {
+    if (currentYear >= 2026) {
+        dureeTravail += (pauseOfferteVal - totalPauses);
+    } else if (totalPauses > pauseOfferteVal) {
         dureeTravail -= (totalPauses - pauseOfferteVal);
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
     let heuresSup = (dureeTravail / 60) - (heuresJourMin / 60);
-    
 
-    
+
     // Conversion en HH:MM
     let totalMinutes = Math.round(heuresSup * 60);
     let signe = totalMinutes >= 0 ? '+' : '-';
@@ -3678,21 +3828,21 @@ function calculerHeuresSupCalculette() {
         if (isRhtPhase1) {
             // RHT phase 1 : utiliser les heures standard (pas de modification des horaires)
             const heuresJourInput = document.getElementById('heures-jour');
-            const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(getParam('heuresJour')) || 7.5);
             heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
             pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
         } else {
             // RHT phase 2 : utiliser les paramètres RHT
-            const rhtDecStr = localStorage.getItem('rht_heures_dec');
-            const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+            const rhtDecStr = getParam('rht_heures_dec');
+            const rhtHeures = rhtDecStr ? parseFloat(rhtDecStr.replace(',', '.')) : (parseFloat(getParam('heuresJour')) || 7.5);
             heuresJourMin = Math.round((isNaN(rhtHeures) ? 7.5 : rhtHeures) * 60);
-            const rhtPause = parseInt(localStorage.getItem('rht_pause_offerte'));
+            const rhtPause = parseInt(getParam('rht_pause_offerte'));
             pauseOfferteVal = !isNaN(rhtPause) ? rhtPause : (typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15);
         }
     } else {
         // Mode normal : utiliser les paramètres généraux
         const heuresJourInput = document.getElementById('heures-jour');
-        const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        const heuresJourVal = heuresJourInput ? parseFloat(heuresJourInput.value) : (parseFloat(getParam('heuresJour')) || 7.5);
         heuresJourMin = Math.round((isNaN(heuresJourVal) ? 7.5 : heuresJourVal) * 60);
         pauseOfferteVal = typeof pauseOfferte !== 'undefined' ? pauseOfferte : 15;
     }
@@ -3719,7 +3869,9 @@ function calculerHeuresSupCalculette() {
     // Note: pauseSup inclut déjà pause2 + pause après-midi via getPauseSupMinutes()
     const pauseSup = getPauseSupMinutes();
     const totalPauses = pause1DureeMin + pauseSup;
-    if (totalPauses > pauseOfferteVal) {
+    if (currentYear >= 2026) {
+        dureeTravail += (pauseOfferteVal - totalPauses);
+    } else if (totalPauses > pauseOfferteVal) {
         dureeTravail -= (totalPauses - pauseOfferteVal);
     }
     // Heures sup = durée de travail (en heures) - heures à faire par jour
@@ -3928,9 +4080,9 @@ function updatePause3Total() {
     let pauseOfferteVal;
     if (pause3RhtChecked) {
         // Mode RHT : utiliser les paramètres RHT du modal
-        const rhtEnabled = localStorage.getItem('rht_enabled') === 'true';
+        const rhtEnabled = getParam('rht_enabled') === 'true';
         if (rhtEnabled) {
-            const rhtPauseOfferte = parseInt(localStorage.getItem('rht_pause_offerte'));
+            const rhtPauseOfferte = parseInt(getParam('rht_pause_offerte'));
             pauseOfferteVal = !isNaN(rhtPauseOfferte) ? rhtPauseOfferte : 0;
         } else {
             pauseOfferteVal = 0; // Par défaut 0 en mode RHT si pas configuré
@@ -5453,10 +5605,10 @@ function migrerDonneesRHT() {
     localStorage.setItem('rht_migration_done', 'true');
 }
 
-// Charger les périodes RHT d'une phase
+// Charger les périodes RHT d'une phase (avec fallback legacy)
 function chargerPeriodesRHT(phase) {
     const key = phase === 'phase1' ? 'rht_periodes_phase1' : 'rht_periodes_phase2';
-    const periodesStr = localStorage.getItem(key);
+    const periodesStr = getParam(key);
     if (!periodesStr) return [];
     try {
         return JSON.parse(periodesStr);
@@ -5466,10 +5618,10 @@ function chargerPeriodesRHT(phase) {
     }
 }
 
-// Sauvegarder les périodes RHT d'une phase
+// Sauvegarder les périodes RHT d'une phase (stockage par année)
 function sauvegarderPeriodesRHT(phase, periodes) {
     const key = phase === 'phase1' ? 'rht_periodes_phase1' : 'rht_periodes_phase2';
-    localStorage.setItem(key, JSON.stringify(periodes));
+    setParam(key, JSON.stringify(periodes));
 }
 
 // Obtenir toutes les périodes RHT d'une phase
@@ -6006,7 +6158,7 @@ function updateCompteursAbsences() {
     let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
     let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
     // Heures à faire par jour (en minutes)
-    let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60;
+    let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(getParam('heuresJour')) || 7.5) * 60;
     let heuresJour = minutesJour / 60;
     if (compteurVac) compteurVac.textContent = joursVacances.length;
     if (compteurRTT) compteurRTT.textContent = joursRTT.length;
@@ -6146,38 +6298,38 @@ if (document.readyState === 'loading') {
         return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
     }
 
-    // Restauration phase 1
-    if (rhtPhase1Enabled) rhtPhase1Enabled.checked = localStorage.getItem('param-rht-phase1-enabled') === 'true';
-    if (rhtPhase1Debut) rhtPhase1Debut.value = localStorage.getItem('param-rht-phase1-debut') || '';
-    if (rhtPhase1Fin) rhtPhase1Fin.value = localStorage.getItem('param-rht-phase1-fin') || '';
-    
-    // Restauration phase 2
-    if (rhtEnabled) rhtEnabled.checked = localStorage.getItem('rht_enabled') === 'true';
-    if (rhtDebut) rhtDebut.value = localStorage.getItem('rht_debut') || '';
-    if (rhtFin) rhtFin.value = localStorage.getItem('rht_fin') || '';
-    if (rhtHeuresDec) rhtHeuresDec.value = localStorage.getItem('rht_heures_dec') || '';
-    if (rhtHeuresHHMM) rhtHeuresHHMM.value = localStorage.getItem('rht_heures_hhmm') || '';
-    if (rhtPauseOfferte) rhtPauseOfferte.value = localStorage.getItem('rht_pause_offerte') || '';
+    // Restauration phase 1 (avec fallback legacy)
+    if (rhtPhase1Enabled) rhtPhase1Enabled.checked = getParam('param-rht-phase1-enabled') === 'true';
+    if (rhtPhase1Debut) rhtPhase1Debut.value = getParam('param-rht-phase1-debut') || '';
+    if (rhtPhase1Fin) rhtPhase1Fin.value = getParam('param-rht-phase1-fin') || '';
+
+    // Restauration phase 2 (avec fallback legacy)
+    if (rhtEnabled) rhtEnabled.checked = getParam('rht_enabled') === 'true';
+    if (rhtDebut) rhtDebut.value = getParam('rht_debut') || '';
+    if (rhtFin) rhtFin.value = getParam('rht_fin') || '';
+    if (rhtHeuresDec) rhtHeuresDec.value = getParam('rht_heures_dec') || '';
+    if (rhtHeuresHHMM) rhtHeuresHHMM.value = getParam('rht_heures_hhmm') || '';
+    if (rhtPauseOfferte) rhtPauseOfferte.value = getParam('rht_pause_offerte') || '';
 
     // Synchronisation heures décimal <-> HH:MM
     if (rhtHeuresDec && rhtHeuresHHMM) {
         rhtHeuresDec.addEventListener('input', function() {
             const dec = parseFloat(this.value.replace(',', '.'));
             if (!isNaN(dec)) rhtHeuresHHMM.value = decToHHMM(dec);
-            localStorage.setItem('rht_heures_dec', this.value);
-            localStorage.setItem('rht_heures_hhmm', rhtHeuresHHMM.value);
+            setParam('rht_heures_dec', this.value);
+            setParam('rht_heures_hhmm', rhtHeuresHHMM.value);
         });
         rhtHeuresHHMM.addEventListener('input', function() {
             const dec = hhmmToDec(this.value);
             if (dec != null) rhtHeuresDec.value = dec.toFixed(2).replace('.', ',');
-            localStorage.setItem('rht_heures_hhmm', this.value);
-            localStorage.setItem('rht_heures_dec', rhtHeuresDec.value);
+            setParam('rht_heures_hhmm', this.value);
+            setParam('rht_heures_dec', rhtHeuresDec.value);
         });
     }
 
     // Sauvegardes phase 1
     if (rhtPhase1Enabled) rhtPhase1Enabled.addEventListener('change', function() {
-        localStorage.setItem('param-rht-phase1-enabled', String(this.checked));
+        setParam('param-rht-phase1-enabled', String(this.checked));
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
@@ -6192,7 +6344,7 @@ if (document.readyState === 'loading') {
         }
     });
     if (rhtPhase1Debut) rhtPhase1Debut.addEventListener('blur', function() {
-        localStorage.setItem('param-rht-phase1-debut', rhtPhase1Debut.value);
+        setParam('param-rht-phase1-debut', rhtPhase1Debut.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
@@ -6207,7 +6359,7 @@ if (document.readyState === 'loading') {
         }
     });
     if (rhtPhase1Fin) rhtPhase1Fin.addEventListener('blur', function() {
-        localStorage.setItem('param-rht-phase1-fin', rhtPhase1Fin.value);
+        setParam('param-rht-phase1-fin', rhtPhase1Fin.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
@@ -6224,7 +6376,7 @@ if (document.readyState === 'loading') {
     
     // Sauvegardes phase 2
     if (rhtEnabled) rhtEnabled.addEventListener('change', function() {
-        localStorage.setItem('rht_enabled', String(this.checked));
+        setParam('rht_enabled', String(this.checked));
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
@@ -6239,7 +6391,7 @@ if (document.readyState === 'loading') {
         }
     });
     if (rhtDebut) rhtDebut.addEventListener('blur', function() {
-        localStorage.setItem('rht_debut', rhtDebut.value);
+        setParam('rht_debut', rhtDebut.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
@@ -6254,7 +6406,7 @@ if (document.readyState === 'loading') {
         }
     });
     if (rhtFin) rhtFin.addEventListener('blur', function() {
-        localStorage.setItem('rht_fin', rhtFin.value);
+        setParam('rht_fin', rhtFin.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
@@ -6269,7 +6421,7 @@ if (document.readyState === 'loading') {
         }
     });
     if (rhtPauseOfferte) rhtPauseOfferte.addEventListener('input', function() {
-        localStorage.setItem('rht_pause_offerte', rhtPauseOfferte.value);
+        setParam('rht_pause_offerte', rhtPauseOfferte.value);
         // Mettre à jour le tableau immédiatement
         if (typeof afficherJours === 'function') {
             afficherJours();
@@ -6398,14 +6550,14 @@ function getHeuresJourMinutesEffective(dateStr) {
     if (periodeRHT && periodeRHT.heuresJour !== null && !isNaN(periodeRHT.heuresJour)) {
         return Math.round(periodeRHT.heuresJour * 60);
     }
-    return (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : Math.round(((parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60));
+    return (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : Math.round(((parseFloat(getParam('heuresJour')) || 7.5) * 60));
 }
 function getPauseOfferteEffective(dateStr) {
     const periodeRHT = obtenirPeriodeRHTPourDate(dateStr, 'phase2');
     if (periodeRHT && periodeRHT.pauseOfferte !== null && !isNaN(periodeRHT.pauseOfferte)) {
         return parseInt(periodeRHT.pauseOfferte);
     }
-    return parseInt(localStorage.getItem('pauseOfferte')) || 15;
+    return parseInt(getParam('pauseOfferte')) || 15;
 }
 
 // Convertir HH:MM en minutes
@@ -6529,7 +6681,7 @@ function updateCompteursAbsences() {
     let joursFeries = JSON.parse(localStorage.getItem('joursFeries')) || [];
     let joursRattrapes = JSON.parse(localStorage.getItem('joursRattrapes')) || [];
     // Heures à faire par jour (en minutes)
-    let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(localStorage.getItem('heuresJour')) || 7.5) * 60;
+    let minutesJour = (typeof getHeuresJourMinutes === 'function') ? getHeuresJourMinutes() : (parseFloat(getParam('heuresJour')) || 7.5) * 60;
     let heuresJour = minutesJour / 60;
     if (compteurVac) compteurVac.textContent = joursVacances.length;
     if (compteurRTT) compteurRTT.textContent = joursRTT.length;
@@ -6553,7 +6705,7 @@ function updateCompteursAbsences() {
         // Heures de RHT phase 2 pour les jours travaillés du mois
         let heuresRHTPhase2 = 0;
         // Récupérer les heures générales
-        const heuresJourGeneral = (typeof getHeuresJourMinutes === 'function') ? (getHeuresJourMinutes() / 60) : (parseFloat(localStorage.getItem('heuresJour')) || 7.5);
+        const heuresJourGeneral = (typeof getHeuresJourMinutes === 'function') ? (getHeuresJourMinutes() / 60) : (parseFloat(getParam('heuresJour')) || 7.5);
         
         // Filtrer les jours du mois affiché
         const joursMois = jours.filter(jour => {
